@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,9 +7,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Search, RefreshCw, Trash2, Edit, Download } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { PlusCircle, Search, RefreshCw, Trash2, Edit, Download, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getActiveClient } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: number;
@@ -25,36 +27,13 @@ interface User {
 }
 
 const UsersPage: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 1,
-      username: 'bishan',
-      subscription: 'premium',
-      expiredate: '2025-12-31',
-      mobile_number: '123-456-7890',
-      admin_approval: true,
-      save_hwid: true,
-      hwid_reset_count: 5,
-      max_devices: 2,
-      key: 'ABC123'
-    },
-    {
-      id: 2,
-      username: 'nethma',
-      subscription: 'standard',
-      expiredate: '2025-06-30',
-      mobile_number: '987-654-3210',
-      admin_approval: false,
-      save_hwid: false,
-      hwid_reset_count: 3,
-      max_devices: 1,
-      key: 'XYZ456'
-    }
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const { toast } = useToast();
+  const { isConnected } = useAuth();
   
   // New user form state
   const [newUser, setNewUser] = useState<Partial<User>>({
@@ -68,8 +47,80 @@ const UsersPage: React.FC = () => {
     max_devices: 1,
     key: ''
   });
+
+  // Fetch users from Supabase
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!isConnected) {
+        setUsers([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const client = getActiveClient();
+        const { data, error } = await client.from('users').select('*');
+        
+        if (error) {
+          console.error("Error fetching users:", error);
+          toast({
+            title: "Failed to load users",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setUsers(data);
+          console.log("Fetched users:", data);
+        } else {
+          console.log("No users found or empty response");
+          // Use mock data if no real data is available
+          setUsers([
+            {
+              id: 1,
+              username: 'bishan',
+              subscription: 'premium',
+              expiredate: '2025-12-31',
+              mobile_number: '123-456-7890',
+              admin_approval: true,
+              save_hwid: true,
+              hwid_reset_count: 5,
+              max_devices: 2,
+              key: 'ABC123'
+            },
+            {
+              id: 2,
+              username: 'nethma',
+              subscription: 'standard',
+              expiredate: '2025-06-30',
+              mobile_number: '987-654-3210',
+              admin_approval: false,
+              save_hwid: false,
+              hwid_reset_count: 3,
+              max_devices: 1,
+              key: 'XYZ456'
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch users:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load users. Please check your connection.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [isConnected, toast]);
   
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUser.username || !newUser.subscription) {
       toast({
         title: "Missing Information",
@@ -79,38 +130,75 @@ const UsersPage: React.FC = () => {
       return;
     }
     
-    const user: User = {
-      id: users.length + 1,
-      username: newUser.username || '',
-      subscription: newUser.subscription || 'standard',
-      expiredate: newUser.expiredate || format(new Date(), 'yyyy-MM-dd'),
-      mobile_number: newUser.mobile_number || '',
-      admin_approval: newUser.admin_approval || false,
-      save_hwid: newUser.save_hwid !== undefined ? newUser.save_hwid : true,
-      hwid_reset_count: newUser.hwid_reset_count || 5,
-      max_devices: newUser.max_devices || 1,
-      key: newUser.key || `KEY${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-    };
-    
-    setUsers([...users, user]);
-    setIsAddUserOpen(false);
-    toast({
-      title: "User Created",
-      description: `User ${user.username} has been created successfully`
-    });
-    
-    // Reset form
-    setNewUser({
-      username: '',
-      subscription: '',
-      expiredate: format(new Date(), 'yyyy-MM-dd'),
-      mobile_number: '',
-      admin_approval: false,
-      save_hwid: true,
-      hwid_reset_count: 5,
-      max_devices: 1,
-      key: ''
-    });
+    try {
+      setIsLoading(true);
+      
+      const user: Omit<User, 'id'> = {
+        username: newUser.username || '',
+        subscription: newUser.subscription || 'standard',
+        expiredate: newUser.expiredate || format(new Date(), 'yyyy-MM-dd'),
+        mobile_number: newUser.mobile_number || '',
+        admin_approval: newUser.admin_approval || false,
+        save_hwid: newUser.save_hwid !== undefined ? newUser.save_hwid : true,
+        hwid_reset_count: newUser.hwid_reset_count || 5,
+        max_devices: newUser.max_devices || 1,
+        key: newUser.key || `KEY${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+      };
+      
+      if (isConnected) {
+        const client = getActiveClient();
+        const { data, error } = await client.from('users').insert(user).select();
+        
+        if (error) {
+          console.error("Error creating user:", error);
+          toast({
+            title: "Failed to create user",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setUsers(prev => [...prev, data[0] as User]);
+        }
+      } else {
+        // Fallback to local state if no connection
+        const newUserWithId = {
+          ...user,
+          id: users.length ? Math.max(...users.map(u => u.id)) + 1 : 1
+        };
+        setUsers(prev => [...prev, newUserWithId]);
+      }
+      
+      setIsAddUserOpen(false);
+      toast({
+        title: "User Created",
+        description: `User ${user.username} has been created successfully`
+      });
+      
+      // Reset form
+      setNewUser({
+        username: '',
+        subscription: '',
+        expiredate: format(new Date(), 'yyyy-MM-dd'),
+        mobile_number: '',
+        admin_approval: false,
+        save_hwid: true,
+        hwid_reset_count: 5,
+        max_devices: 1,
+        key: ''
+      });
+    } catch (error) {
+      console.error("Error adding user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create user",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const generateRandomKey = () => {
@@ -191,10 +279,19 @@ const UsersPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.length === 0 ? (
+            {isLoading ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
                 <TableCell colSpan={7} className="text-center py-10 text-gray-400">
-                  No users found
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Loading users...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredUsers.length === 0 ? (
+              <TableRow className="hover:bg-[#151515] border-gray-800">
+                <TableCell colSpan={7} className="text-center py-10 text-gray-400">
+                  {isConnected ? "No users found" : "Connect to Supabase to view users"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -228,6 +325,7 @@ const UsersPage: React.FC = () => {
         </Table>
       </div>
       
+      {/* Add User Dialog */}
       <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
         <DialogContent className="bg-[#101010] text-white border-gray-800 max-w-2xl">
           <DialogHeader>
@@ -375,8 +473,14 @@ const UsersPage: React.FC = () => {
             <Button 
               onClick={handleAddUser}
               className="bg-blue-600 hover:bg-blue-700"
+              disabled={isLoading}
             >
-              Create User
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : 'Create User'}
             </Button>
           </DialogFooter>
         </DialogContent>

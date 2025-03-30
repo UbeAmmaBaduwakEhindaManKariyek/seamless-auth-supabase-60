@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from '@supabase/supabase-js';
+import { supabase, createCustomClient, getActiveClient } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -50,17 +50,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      console.log("Attempting to connect to Supabase with:", { url });
+      console.log("Attempting to connect to Supabase with URL:", url);
       
-      const supabase = createClient(url, key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-        }
-      });
+      // Create a custom client with the provided credentials
+      const customClient = createCustomClient(url, key);
+      
+      if (!customClient) {
+        console.error("Failed to create custom Supabase client");
+        setIsConnected(false);
+        return false;
+      }
       
       // Check connection by making a simple query
-      const { error } = await supabase.from('users').select('count', { count: 'exact', head: true });
+      const { error } = await customClient.from('users').select('count', { count: 'exact', head: true });
       
       if (error) {
         console.error("Supabase connection error:", error);

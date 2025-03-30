@@ -6,11 +6,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { getActiveClient } from '@/integrations/supabase/client';
 
 const SupabaseSetup: React.FC = () => {
   const [url, setUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const { saveSupabaseConfig, user, isConnected } = useAuth();
 
   // Initialize with saved values if available
@@ -32,6 +34,27 @@ const SupabaseSetup: React.FC = () => {
       } finally {
         setIsSubmitting(false);
       }
+    }
+  };
+
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      const client = getActiveClient();
+      const { data, error } = await client.from('users').select('count', { count: 'exact', head: true });
+      
+      if (error) {
+        console.error("Connection test failed:", error);
+        return false;
+      }
+      
+      console.log("Connection test successful:", data);
+      return true;
+    } catch (error) {
+      console.error("Connection test error:", error);
+      return false;
+    } finally {
+      setIsTestingConnection(false);
     }
   };
 
@@ -60,7 +83,7 @@ const SupabaseSetup: React.FC = () => {
               <XCircle className="h-4 w-4" />
               <AlertTitle>Connection Failed</AlertTitle>
               <AlertDescription>
-                Could not connect to Supabase with the provided URL and API key.
+                Could not connect to Supabase with the provided URL and API key. Please verify your credentials.
               </AlertDescription>
             </Alert>
           )}
@@ -98,10 +121,25 @@ const SupabaseSetup: React.FC = () => {
             </p>
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex justify-between">
+          <Button 
+            type="button" 
+            variant="outline"
+            className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
+            onClick={testConnection}
+            disabled={isTestingConnection || !url || !apiKey}
+          >
+            {isTestingConnection ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Testing...
+              </>
+            ) : 'Test Connection'}
+          </Button>
+          
           <Button 
             type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700"
             disabled={isSubmitting}
           >
             {isSubmitting ? (
