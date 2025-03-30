@@ -1,17 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const SupabaseSetup: React.FC = () => {
   const [url, setUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { saveSupabaseConfig, user, isConnected } = useAuth();
+
+  // Initialize with saved values if available
+  useEffect(() => {
+    if (user?.supabaseUrl) {
+      setUrl(user.supabaseUrl);
+    }
+    if (user?.supabaseKey) {
+      setApiKey(user.supabaseKey);
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +47,24 @@ const SupabaseSetup: React.FC = () => {
         <CardContent className="space-y-4">
           {isConnected && (
             <Alert className="bg-green-900 border-green-700">
+              <CheckCircle className="h-4 w-4" />
               <AlertTitle>Connected!</AlertTitle>
               <AlertDescription>
                 Your Supabase connection has been configured and is working.
               </AlertDescription>
             </Alert>
           )}
+          
+          {!isConnected && user?.supabaseUrl && (
+            <Alert className="bg-red-900 border-red-700">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle>Connection Failed</AlertTitle>
+              <AlertDescription>
+                Could not connect to Supabase with the provided URL and API key.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-2">
             <label htmlFor="supabaseUrl" className="text-sm font-medium text-gray-300">
               Supabase URL
@@ -50,11 +72,14 @@ const SupabaseSetup: React.FC = () => {
             <Input
               id="supabaseUrl"
               placeholder="https://your-project.supabase.co"
-              value={url || (user?.supabaseUrl || '')}
+              value={url}
               onChange={(e) => setUrl(e.target.value)}
               required
               className="bg-[#1a1a1a] border-gray-700 text-white"
             />
+            <p className="text-xs text-gray-400">
+              Example: https://tevmesjpsrsiuwswgzfb.supabase.co
+            </p>
           </div>
           <div className="space-y-2">
             <label htmlFor="supabaseKey" className="text-sm font-medium text-gray-300">
@@ -63,11 +88,14 @@ const SupabaseSetup: React.FC = () => {
             <Input
               id="supabaseKey"
               placeholder="your-api-key"
-              value={apiKey || (user?.supabaseKey || '')}
+              value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               required
               className="bg-[#1a1a1a] border-gray-700 text-white"
             />
+            <p className="text-xs text-gray-400">
+              Use the anon/public key from your Supabase project settings
+            </p>
           </div>
         </CardContent>
         <CardFooter>

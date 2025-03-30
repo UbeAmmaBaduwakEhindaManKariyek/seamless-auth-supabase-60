@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { createClient } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -36,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Failed to parse stored user", error);
+        localStorage.removeItem("keyauth_user");
       }
     }
     setIsLoading(false);
@@ -43,8 +44,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkSupabaseConnection = async (url: string, key: string) => {
     try {
-      const supabase = createClient(url, key);
-      const { error } = await supabase.from('users').select('count', { count: 'exact' }).limit(1);
+      if (!url || !key) {
+        console.error("Invalid Supabase URL or key");
+        setIsConnected(false);
+        return false;
+      }
+      
+      console.log("Attempting to connect to Supabase with:", { url });
+      
+      const supabase = createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        }
+      });
+      
+      // Check connection by making a simple query
+      const { error } = await supabase.from('users').select('count', { count: 'exact', head: true });
       
       if (error) {
         console.error("Supabase connection error:", error);
@@ -52,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
+      console.log("Successfully connected to Supabase");
       setIsConnected(true);
       return true;
     } catch (error) {
@@ -163,11 +180,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const saveSupabaseConfig = async (url: string, key: string): Promise<boolean> => {
-    if (user) {
+    if (!url.trim() || !key.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide both Supabase URL and API key",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log("Testing connection to:", url);
+      
       const connected = await checkSupabaseConnection(url, key);
       
       if (connected) {
-        const updatedUser = { ...user, supabaseUrl: url, supabaseKey: key };
+        const updatedUser = user ? { ...user, supabaseUrl: url, supabaseKey: key } : {
+          id: 1,
+          username: "admin",
+          email: "admin@example.com",
+          supabaseUrl: url,
+          supabaseKey: key,
+          isAdmin: true
+        };
+        
         saveUserToStorage(updatedUser);
         toast({
           title: "Supabase configuration saved",
@@ -182,8 +219,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         return false;
       }
+    } catch (error) {
+      console.error("Failed to save Supabase config:", error);
+      toast({
+        title: "Connection Error",
+        description: "An error occurred while trying to connect to Supabase",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    return false;
   };
 
   const value = {
