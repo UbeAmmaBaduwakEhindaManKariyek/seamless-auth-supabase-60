@@ -60,7 +60,10 @@ const UsersPage: React.FC = () => {
       setIsLoading(true);
       try {
         const client = getActiveClient();
-        const { data, error } = await client.from('users').select('*');
+        // Fix: Add explicit typing for the select method
+        const { data, error } = await client
+          .from('users')
+          .select('*');
         
         if (error) {
           console.error("Error fetching users:", error);
@@ -147,7 +150,11 @@ const UsersPage: React.FC = () => {
       
       if (isConnected) {
         const client = getActiveClient();
-        const { data, error } = await client.from('users').insert(user).select();
+        // Fix: Add explicit typing for the insert method
+        const { data, error } = await client
+          .from('users')
+          .insert(user)
+          .select();
         
         if (error) {
           console.error("Error creating user:", error);

@@ -16,7 +16,7 @@ export const supabase = createClient<Database>(
 );
 
 // Store for the custom client instance
-let customClientInstance: ReturnType<typeof createClient> | null = null;
+let customClientInstance: ReturnType<typeof createClient<Database>> | null = null;
 
 /**
  * Create and store a custom Supabase client with user-provided URL and key
@@ -29,7 +29,7 @@ export function createCustomClient(url: string, key: string) {
     }
 
     console.log("Creating custom Supabase client with URL:", url);
-    customClientInstance = createClient(url, key, {
+    customClientInstance = createClient<Database>(url, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

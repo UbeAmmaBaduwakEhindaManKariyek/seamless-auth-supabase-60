@@ -41,7 +41,11 @@ const SupabaseSetup: React.FC = () => {
     setIsTestingConnection(true);
     try {
       const client = getActiveClient();
-      const { data, error } = await client.from('users').select('count', { count: 'exact', head: true });
+      // Fix: Add explicit typing for the select method
+      const { data, error } = await client
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .limit(0);
       
       if (error) {
         console.error("Connection test failed:", error);
