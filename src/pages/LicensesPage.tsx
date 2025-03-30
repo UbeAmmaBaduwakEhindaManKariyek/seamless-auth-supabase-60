@@ -1,101 +1,314 @@
 
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import React, { useState, useEffect } from 'react';
+import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Download, Trash2, Clock, FileDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PlusCircle, Download, Search, Loader2, Trash2, Copy } from 'lucide-react';
+import { getActiveClient } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
 
 interface License {
   id: string;
   key: string;
-  creationDate: string;
-  generatedBy: string;
-  duration: string;
-  used: boolean;
+  user_id: number | null;
+  created_at: string;
+  expired_at: string | null;
+  is_active: boolean;
+  username?: string; // From users table join
 }
 
 const LicensesPage: React.FC = () => {
   const [licenses, setLicenses] = useState<License[]>([]);
-  const [isCreateKeysOpen, setIsCreateKeysOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
-  const [keyAmount, setKeyAmount] = useState(10);
-  const [keyDuration, setKeyDuration] = useState('30');
-  const [keyDurationType, setKeyDurationType] = useState('days');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newLicenseKey, setNewLicenseKey] = useState('');
+  const [newLicenseExpiry, setNewLicenseExpiry] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const { toast } = useToast();
+  const { isConnected } = useAuth();
   
-  const generateRandomKey = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let key = '';
-    for (let i = 0; i < 4; i++) {
-      for (let j = 0; j < 4; j++) {
-        key += chars.charAt(Math.floor(Math.random() * chars.length));
+  useEffect(() => {
+    const fetchLicenses = async () => {
+      if (!isConnected) {
+        setLicenses([]);
+        setIsLoading(false);
+        return;
       }
-      if (i < 3) key += '-';
-    }
-    return key;
-  };
+      
+      setIsLoading(true);
+      try {
+        const client = getActiveClient();
+        
+        // Try to get licenses with joined user data
+        const { data, error } = await client
+          .from('license_keys')
+          .select(`*, users(username)`)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching licenses:", error);
+          toast({
+            title: "Failed to load licenses",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          // Format the data to include username from the joined users table
+          const formattedData = data.map(item => ({
+            ...item,
+            username: item.users?.username
+          }));
+          setLicenses(formattedData);
+        } else {
+          // Mock data if no records found
+          setLicenses([
+            {
+              id: '1',
+              key: 'LICENSE-XXXX-YYYY-ZZZZ',
+              user_id: 1,
+              created_at: new Date().toISOString(),
+              expired_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              is_active: true,
+              username: 'johndoe'
+            },
+            {
+              id: '2',
+              key: 'LICENSE-AAAA-BBBB-CCCC',
+              user_id: 2,
+              created_at: new Date().toISOString(),
+              expired_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
+              is_active: true,
+              username: 'janesmith'
+            },
+            {
+              id: '3',
+              key: 'LICENSE-DDDD-EEEE-FFFF',
+              user_id: null,
+              created_at: new Date().toISOString(),
+              expired_at: null,
+              is_active: false,
+              username: undefined
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch licenses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load license data",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchLicenses();
+  }, [isConnected, toast]);
   
-  const handleCreateKeys = () => {
-    const newKeys: License[] = [];
-    
-    for (let i = 0; i < keyAmount; i++) {
-      newKeys.push({
-        id: Math.random().toString(36).substring(2, 9),
-        key: generateRandomKey(),
-        creationDate: new Date().toISOString().split('T')[0],
-        generatedBy: 'Admin',
-        duration: `${keyDuration} ${keyDurationType}`,
-        used: false
+  const filteredLicenses = licenses.filter(license => 
+    license.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (license.username && license.username.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+  
+  const totalPages = Math.ceil(filteredLicenses.length / entriesPerPage);
+  const displayedLicenses = filteredLicenses.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  );
+  
+  const handleExport = () => {
+    if (filteredLicenses.length === 0) {
+      toast({
+        title: "No Records",
+        description: "There are no licenses to export",
+        variant: "destructive"
       });
+      return;
     }
     
-    setLicenses([...licenses, ...newKeys]);
-    setIsCreateKeysOpen(false);
+    const csvContent = [
+      ['ID', 'License Key', 'User ID', 'Username', 'Created At', 'Expires At', 'Status'].join(','),
+      ...filteredLicenses.map(license => [
+        license.id,
+        license.key,
+        license.user_id || '',
+        license.username || '',
+        license.created_at,
+        license.expired_at || '',
+        license.is_active ? 'Active' : 'Inactive'
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `license-keys-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     
     toast({
-      title: "License Keys Created",
-      description: `${keyAmount} license keys generated successfully`,
+      title: "Export Complete",
+      description: `${filteredLicenses.length} license(s) exported to CSV`
+    });
+  };
+  
+  const generateRandomKey = () => {
+    setIsGenerating(true);
+    
+    // Generate a random key with format LICENSE-XXXX-YYYY-ZZZZ
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const parts = [];
+    for (let i = 0; i < 3; i++) {
+      let part = '';
+      for (let j = 0; j < 4; j++) {
+        part += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      parts.push(part);
+    }
+    
+    const licenseKey = `LICENSE-${parts[0]}-${parts[1]}-${parts[2]}`;
+    setNewLicenseKey(licenseKey);
+    
+    setTimeout(() => {
+      setIsGenerating(false);
+    }, 500);
+  };
+  
+  const handleCreateLicense = async () => {
+    if (!newLicenseKey) {
+      toast({
+        title: "Missing Information",
+        description: "Please generate or enter a license key",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      if (isConnected) {
+        const client = getActiveClient();
+        const expiredAt = newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null;
+        
+        const { data, error } = await client
+          .from('license_keys')
+          .insert({
+            key: newLicenseKey,
+            expired_at: expiredAt,
+            is_active: true
+          })
+          .select();
+        
+        if (error) {
+          console.error("Error creating license:", error);
+          toast({
+            title: "Failed to create license",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setLicenses(prev => [data[0], ...prev]);
+        }
+      } else {
+        // Mock creation
+        const newLicense: License = {
+          id: Math.random().toString(36).substring(2, 15),
+          key: newLicenseKey,
+          user_id: null,
+          created_at: new Date().toISOString(),
+          expired_at: newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null,
+          is_active: true
+        };
+        
+        setLicenses(prev => [newLicense, ...prev]);
+      }
+      
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "License Created",
+        description: "The license key has been created successfully"
+      });
+      
+      // Reset form
+      setNewLicenseKey('');
+      setNewLicenseExpiry('');
+    } catch (error) {
+      console.error("Failed to create license:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const handleCopyKey = (key: string) => {
+    navigator.clipboard.writeText(key).then(() => {
+      toast({
+        title: "Copied",
+        description: "License key copied to clipboard"
+      });
+    }).catch(err => {
+      console.error("Failed to copy:", err);
     });
   };
   
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Licenses</h1>
-        <p className="text-gray-400">Manage license keys for your application</p>
+        <h1 className="text-3xl font-bold text-white mb-2">License Keys</h1>
+        <p className="text-gray-400">Manage and generate license keys</p>
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div className="flex flex-col md:flex-row gap-4 md:items-center w-full md:w-auto">
-          <Button 
-            onClick={() => setIsCreateKeysOpen(true)}
+        <div className="flex flex-col md:flex-row gap-4">
+          <Button
             className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => setIsCreateDialogOpen(true)}
           >
-            <PlusCircle className="mr-2 h-4 w-4" /> Create Keys
+            <PlusCircle className="mr-2 h-4 w-4" /> Create License
           </Button>
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => toast({
-              title: "Feature",
-              description: "This feature would add time to unused keys"
-            })}
+          
+          <Button
+            variant="outline"
+            className="bg-[#1a1a1a] border-gray-700 text-white"
+            onClick={handleExport}
+            disabled={licenses.length === 0}
           >
-            <Clock className="mr-2 h-4 w-4" /> Add Time To Unused Keys
-          </Button>
-          <Button variant="outline" className="bg-[#1a1a1a] border-gray-700 text-white">
-            <Download className="mr-2 h-4 w-4" /> Export Keys
+            <Download className="mr-2 h-4 w-4" /> Export Licenses
           </Button>
         </div>
         
         <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
           <div className="flex items-center gap-2">
             <span className="text-white text-sm">Show:</span>
-            <Select value={entriesPerPage.toString()} onValueChange={(value) => setEntriesPerPage(parseInt(value))}>
+            <Select
+              value={entriesPerPage.toString()}
+              onValueChange={(value) => {
+                setEntriesPerPage(parseInt(value));
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="w-20 bg-[#1a1a1a] border-gray-700 text-white">
                 <SelectValue placeholder="10" />
               </SelectTrigger>
@@ -109,27 +322,17 @@ const LicensesPage: React.FC = () => {
           </div>
           
           <div className="relative flex-1 md:min-w-[250px]">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
             <Input
-              placeholder="Search keys..."
-              className="bg-[#1a1a1a] border-gray-700 text-white"
+              placeholder="Search licenses..."
+              className="pl-8 bg-[#1a1a1a] border-gray-700 text-white"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
-        </div>
-      </div>
-      
-      <div className="flex flex-col md:flex-row gap-4 justify-between">
-        <div className="flex flex-col md:flex-row gap-4 md:items-center">
-          <Button variant="destructive" className="w-full md:w-auto">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete All Keys
-          </Button>
-          <Button variant="destructive" className="w-full md:w-auto">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete All Used Keys
-          </Button>
-          <Button variant="destructive" className="w-full md:w-auto">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete All Unused Keys
-          </Button>
         </div>
       </div>
       
@@ -137,129 +340,167 @@ const LicensesPage: React.FC = () => {
         <Table>
           <TableHeader className="bg-[#0a0a0a]">
             <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
-              <TableHead className="text-gray-300 w-20">Select</TableHead>
-              <TableHead className="text-gray-300">Key</TableHead>
-              <TableHead className="text-gray-300">Creation Date</TableHead>
-              <TableHead className="text-gray-300">Generated By</TableHead>
-              <TableHead className="text-gray-300">Duration</TableHead>
+              <TableHead className="text-gray-300">License Key</TableHead>
               <TableHead className="text-gray-300">Status</TableHead>
+              <TableHead className="text-gray-300">User</TableHead>
+              <TableHead className="text-gray-300">Created At</TableHead>
+              <TableHead className="text-gray-300">Expires</TableHead>
+              <TableHead className="text-gray-300 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {licenses.length === 0 ? (
+            {isLoading ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
                 <TableCell colSpan={6} className="text-center py-10 text-gray-400">
-                  No license keys found. Create some keys to get started.
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Loading licenses...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : displayedLicenses.length === 0 ? (
+              <TableRow className="hover:bg-[#151515] border-gray-800">
+                <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                  {searchTerm ? "No matching licenses found" : "No licenses found. Create a license to get started."}
                 </TableCell>
               </TableRow>
             ) : (
-              licenses
-                .filter(license => license.key.toLowerCase().includes(searchTerm.toLowerCase()))
-                .slice(0, entriesPerPage)
-                .map((license) => (
-                  <TableRow key={license.id} className="hover:bg-[#151515] border-gray-800">
-                    <TableCell>
-                      <input type="checkbox" className="rounded bg-[#1a1a1a] border-gray-700 text-blue-600" />
-                    </TableCell>
-                    <TableCell className="font-medium text-white">{license.key}</TableCell>
-                    <TableCell className="text-white">{license.creationDate}</TableCell>
-                    <TableCell className="text-white">{license.generatedBy}</TableCell>
-                    <TableCell className="text-white">{license.duration}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${license.used ? 'bg-red-900 text-red-300' : 'bg-green-900 text-green-300'}`}>
-                        {license.used ? 'Used' : 'Unused'}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))
+              displayedLicenses.map((license) => (
+                <TableRow key={license.id} className="hover:bg-[#151515] border-gray-800">
+                  <TableCell className="font-medium text-white">
+                    <div className="flex items-center gap-2">
+                      <span>{license.key}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-gray-400 hover:text-white"
+                        onClick={() => handleCopyKey(license.key)}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      license.is_active ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                    }`}>
+                      {license.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-white">{license.username || 'Unassigned'}</TableCell>
+                  <TableCell className="text-white">
+                    {format(new Date(license.created_at), 'yyyy-MM-dd')}
+                  </TableCell>
+                  <TableCell className="text-white">
+                    {license.expired_at 
+                      ? format(new Date(license.expired_at), 'yyyy-MM-dd')
+                      : 'Never'
+                    }
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
       
-      <p className="text-center text-sm text-gray-500">
-        <span className="text-blue-500">Blue</span> actions will show a confirmation. <span className="text-red-500">Red</span> actions will not show a confirmation!
-      </p>
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2">
+          <Button
+            variant="outline"
+            className="bg-[#1a1a1a] border-gray-700 text-white"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          >
+            Previous
+          </Button>
+          <span className="text-gray-400">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            className="bg-[#1a1a1a] border-gray-700 text-white"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          >
+            Next
+          </Button>
+        </div>
+      )}
       
-      <Dialog open={isCreateKeysOpen} onOpenChange={setIsCreateKeysOpen}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="bg-[#101010] text-white border-gray-800">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Create License Keys</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Create License Key</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Generate new license keys for your users.
+              Generate a new license key that can be assigned to a user.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label htmlFor="keyAmount" className="text-sm font-medium text-gray-300">Amount of Keys</label>
-              <Input 
-                id="keyAmount" 
-                type="number" 
-                min="1"
-                max="1000"
-                placeholder="10" 
-                className="bg-[#1a1a1a] border-gray-700 text-white"
-                value={keyAmount}
-                onChange={(e) => setKeyAmount(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))}
-              />
-            </div>
-            
-            <div className="flex gap-4">
-              <div className="space-y-2 flex-1">
-                <label htmlFor="keyDuration" className="text-sm font-medium text-gray-300">Duration</label>
+              <label htmlFor="licenseKey" className="text-sm font-medium text-gray-300">License Key</label>
+              <div className="flex gap-2">
                 <Input 
-                  id="keyDuration" 
-                  type="number"
-                  min="1" 
-                  placeholder="30" 
+                  id="licenseKey" 
+                  placeholder="Generate or enter manually" 
                   className="bg-[#1a1a1a] border-gray-700 text-white"
-                  value={keyDuration}
-                  onChange={(e) => setKeyDuration(e.target.value)}
+                  value={newLicenseKey}
+                  onChange={(e) => setNewLicenseKey(e.target.value)}
                 />
-              </div>
-              
-              <div className="space-y-2 flex-1">
-                <label htmlFor="durationType" className="text-sm font-medium text-gray-300">Duration Type</label>
-                <Select value={keyDurationType} onValueChange={setKeyDurationType}>
-                  <SelectTrigger className="w-full bg-[#1a1a1a] border-gray-700 text-white">
-                    <SelectValue placeholder="Select duration type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white">
-                    <SelectItem value="days">Days</SelectItem>
-                    <SelectItem value="months">Months</SelectItem>
-                    <SelectItem value="years">Years</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
+                  onClick={generateRandomKey}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Generate'}
+                </Button>
               </div>
             </div>
             
-            <div className="pt-4">
-              <div className="bg-[#1a1a1a] p-4 rounded-md border border-gray-800">
-                <h4 className="text-sm font-medium text-gray-300 mb-2">Preview:</h4>
-                <div className="text-green-400 font-mono text-xs">
-                  {generateRandomKey()}<br />
-                  {generateRandomKey()}<br />
-                  {generateRandomKey()}
-                  <div className="text-gray-500 mt-2">+ {keyAmount > 3 ? (keyAmount - 3) : 0} more keys</div>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <label htmlFor="expiryDate" className="text-sm font-medium text-gray-300">Expiration Date (optional)</label>
+              <Input 
+                id="expiryDate" 
+                type="date" 
+                className="bg-[#1a1a1a] border-gray-700 text-white"
+                value={newLicenseExpiry}
+                onChange={(e) => setNewLicenseExpiry(e.target.value)}
+              />
+              <p className="text-xs text-gray-400">Leave blank for a license that never expires</p>
             </div>
           </div>
           
           <DialogFooter className="sm:justify-between">
             <Button 
               variant="outline" 
-              onClick={() => setIsCreateKeysOpen(false)}
+              onClick={() => setIsCreateDialogOpen(false)}
               className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
             >
               Cancel
             </Button>
             <Button 
-              onClick={handleCreateKeys}
+              onClick={handleCreateLicense}
               className="bg-blue-600 hover:bg-blue-700"
+              disabled={!newLicenseKey || isSaving}
             >
-              Generate Keys
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : 'Create License'}
             </Button>
           </DialogFooter>
         </DialogContent>

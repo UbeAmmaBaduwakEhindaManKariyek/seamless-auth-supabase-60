@@ -207,6 +207,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: true
         };
         
+        // Save credentials to web_login_regz table if connected
+        if (user && user.username) {
+          const client = getActiveClient();
+          const { error } = await client.from('web_login_regz').insert({
+            username: user.username,
+            email: user.email || 'admin@example.com',
+            password: 'encrypted_password', // In a real app, you'd store this securely
+            subscription_type: 'admin',
+            supabase_url: url,
+            supabase_api_key: key
+          });
+          
+          if (error) {
+            console.error("Failed to save credentials to web_login_regz:", error);
+          } else {
+            console.log("Successfully saved credentials to web_login_regz table");
+          }
+        }
+        
         saveUserToStorage(updatedUser);
         toast({
           title: "Supabase configuration saved",

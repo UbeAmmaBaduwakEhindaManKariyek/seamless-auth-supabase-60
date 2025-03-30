@@ -1,34 +1,121 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Trash2, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Trash2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { getActiveClient } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface Subscription {
   id: string;
   name: string;
-  licenseLevel: number;
+  description?: string;
+  price?: number;
+  is_active?: boolean;
+  created_at?: string;
 }
 
 const SubscriptionsPage: React.FC = () => {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([
-    { id: '1', name: 'default', licenseLevel: 1 }
-  ]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isCreateSubscriptionOpen, setIsCreateSubscriptionOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
-  const [newSubscription, setNewSubscription] = useState<{ name: string; licenseLevel: string }>({
+  const [isLoading, setIsLoading] = useState(true);
+  const [newSubscription, setNewSubscription] = useState<{ 
+    name: string; 
+    description: string; 
+    price: string;
+    is_active: boolean;
+  }>({
     name: '',
-    licenseLevel: '1'
+    description: '',
+    price: '0',
+    is_active: true
   });
   
   const { toast } = useToast();
+  const { isConnected } = useAuth();
   
-  const handleCreateSubscription = () => {
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      if (!isConnected) {
+        setSubscriptions([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      try {
+        const client = getActiveClient();
+        const { data, error } = await client
+          .from('subscription_types')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching subscriptions:", error);
+          toast({
+            title: "Failed to load subscriptions",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setSubscriptions(data);
+        } else {
+          // Mock data if no records found
+          setSubscriptions([
+            { 
+              id: '1', 
+              name: 'standard', 
+              description: 'Standard subscription plan',
+              price: 9.99,
+              is_active: true,
+              created_at: new Date().toISOString()
+            },
+            { 
+              id: '2', 
+              name: 'premium', 
+              description: 'Premium subscription with additional features',
+              price: 19.99,
+              is_active: true,
+              created_at: new Date().toISOString()
+            },
+            { 
+              id: '3', 
+              name: 'enterprise', 
+              description: 'Enterprise-level subscription',
+              price: 49.99,
+              is_active: true,
+              created_at: new Date().toISOString()
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch subscriptions:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load subscription data",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchSubscriptions();
+  }, [isConnected, toast]);
+  
+  const handleCreateSubscription = async () => {
     if (!newSubscription.name) {
       toast({
         title: "Missing Information",
@@ -47,27 +134,73 @@ const SubscriptionsPage: React.FC = () => {
       return;
     }
     
-    const subscription: Subscription = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: newSubscription.name,
-      licenseLevel: parseInt(newSubscription.licenseLevel)
-    };
-    
-    setSubscriptions([...subscriptions, subscription]);
-    setIsCreateSubscriptionOpen(false);
-    toast({
-      title: "Subscription Created",
-      description: `Subscription "${subscription.name}" has been created successfully`
-    });
-    
-    // Reset form
-    setNewSubscription({
-      name: '',
-      licenseLevel: '1'
-    });
+    setIsLoading(true);
+    try {
+      if (isConnected) {
+        const client = getActiveClient();
+        const { data, error } = await client
+          .from('subscription_types')
+          .insert({
+            name: newSubscription.name,
+            description: newSubscription.description || null,
+            price: parseFloat(newSubscription.price) || 0,
+            is_active: newSubscription.is_active
+          })
+          .select();
+        
+        if (error) {
+          console.error("Error creating subscription:", error);
+          toast({
+            title: "Failed to create subscription",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setSubscriptions(prev => [data[0], ...prev]);
+        }
+      } else {
+        // Mock creation for demo
+        const newSub: Subscription = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: newSubscription.name,
+          description: newSubscription.description,
+          price: parseFloat(newSubscription.price) || 0,
+          is_active: newSubscription.is_active,
+          created_at: new Date().toISOString()
+        };
+        
+        setSubscriptions(prev => [newSub, ...prev]);
+      }
+      
+      setIsCreateSubscriptionOpen(false);
+      toast({
+        title: "Subscription Created",
+        description: `Subscription "${newSubscription.name}" has been created successfully`
+      });
+      
+      // Reset form
+      setNewSubscription({
+        name: '',
+        description: '',
+        price: '0',
+        is_active: true
+      });
+    } catch (error) {
+      console.error("Failed to create subscription:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const handleDeleteAll = () => {
+  const handleDeleteAll = async () => {
     if (subscriptions.length === 0) {
       toast({
         title: "No Subscriptions",
@@ -77,15 +210,53 @@ const SubscriptionsPage: React.FC = () => {
       return;
     }
     
-    setSubscriptions([]);
-    toast({
-      title: "Subscriptions Deleted",
-      description: "All subscriptions have been deleted"
-    });
+    if (!isConnected) {
+      setSubscriptions([]);
+      toast({
+        title: "Subscriptions Deleted",
+        description: "All subscriptions have been deleted"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const client = getActiveClient();
+      const { error } = await client
+        .from('subscription_types')
+        .delete()
+        .neq('id', '0'); // Delete all records
+      
+      if (error) {
+        console.error("Error deleting subscriptions:", error);
+        toast({
+          title: "Failed to delete subscriptions",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setSubscriptions([]);
+      toast({
+        title: "Subscriptions Deleted",
+        description: "All subscriptions have been deleted"
+      });
+    } catch (error) {
+      console.error("Failed to delete subscriptions:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const filteredSubscriptions = subscriptions.filter(sub => 
-    sub.name.toLowerCase().includes(searchTerm.toLowerCase())
+    sub.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    sub.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
   return (
@@ -100,12 +271,14 @@ const SubscriptionsPage: React.FC = () => {
           <Button 
             onClick={() => setIsCreateSubscriptionOpen(true)}
             className="bg-blue-600 hover:bg-blue-700"
+            disabled={isLoading}
           >
             <PlusCircle className="mr-2 h-4 w-4" /> Create Subscription
           </Button>
           <Button 
             variant="destructive"
             onClick={handleDeleteAll}
+            disabled={isLoading || subscriptions.length === 0}
           >
             <Trash2 className="mr-2 h-4 w-4" /> Delete All Subscriptions
           </Button>
@@ -142,17 +315,28 @@ const SubscriptionsPage: React.FC = () => {
         <Table>
           <TableHeader className="bg-[#0a0a0a]">
             <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
-              <TableHead className="text-gray-300 w-20">Select</TableHead>
               <TableHead className="text-gray-300">Subscription Name</TableHead>
-              <TableHead className="text-gray-300">License Level</TableHead>
+              <TableHead className="text-gray-300">Description</TableHead>
+              <TableHead className="text-gray-300">Price</TableHead>
+              <TableHead className="text-gray-300">Status</TableHead>
+              <TableHead className="text-gray-300">Created</TableHead>
               <TableHead className="text-gray-300 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSubscriptions.length === 0 ? (
+            {isLoading ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={4} className="text-center py-10 text-gray-400">
-                  No subscriptions found. Create a subscription to get started.
+                <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Loading subscriptions...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredSubscriptions.length === 0 ? (
+              <TableRow className="hover:bg-[#151515] border-gray-800">
+                <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                  {searchTerm ? "No matching subscriptions found" : "No subscriptions found. Create a subscription to get started."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -160,11 +344,17 @@ const SubscriptionsPage: React.FC = () => {
                 .slice(0, entriesPerPage)
                 .map((subscription) => (
                   <TableRow key={subscription.id} className="hover:bg-[#151515] border-gray-800">
-                    <TableCell>
-                      <input type="checkbox" className="rounded bg-[#1a1a1a] border-gray-700 text-blue-600" />
-                    </TableCell>
                     <TableCell className="font-medium text-white">{subscription.name}</TableCell>
-                    <TableCell className="text-white">{subscription.licenseLevel}</TableCell>
+                    <TableCell className="text-white">{subscription.description || 'N/A'}</TableCell>
+                    <TableCell className="text-white">${subscription.price?.toFixed(2) || '0.00'}</TableCell>
+                    <TableCell className="text-white">
+                      <span className={`px-2 py-1 rounded-full text-xs ${subscription.is_active ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                        {subscription.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-white">
+                      {subscription.created_at && format(new Date(subscription.created_at), 'yyyy-MM-dd')}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-700">
                         <MoreHorizontal className="h-4 w-4" />
@@ -203,17 +393,37 @@ const SubscriptionsPage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-              <label htmlFor="licenseLevel" className="text-sm font-medium text-gray-300">License Level</label>
+              <label htmlFor="description" className="text-sm font-medium text-gray-300">Description</label>
               <Input 
-                id="licenseLevel" 
-                type="number"
-                min="1" 
-                placeholder="1" 
+                id="description" 
+                placeholder="Description of the subscription" 
                 className="bg-[#1a1a1a] border-gray-700 text-white"
-                value={newSubscription.licenseLevel}
-                onChange={(e) => setNewSubscription({...newSubscription, licenseLevel: e.target.value})}
+                value={newSubscription.description}
+                onChange={(e) => setNewSubscription({...newSubscription, description: e.target.value})}
               />
-              <p className="text-xs text-gray-400">Higher numbers indicate higher tier subscriptions.</p>
+            </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="price" className="text-sm font-medium text-gray-300">Price</label>
+              <Input 
+                id="price" 
+                type="number"
+                min="0" 
+                step="0.01"
+                placeholder="0.00" 
+                className="bg-[#1a1a1a] border-gray-700 text-white"
+                value={newSubscription.price}
+                onChange={(e) => setNewSubscription({...newSubscription, price: e.target.value})}
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2 pt-2">
+              <Switch 
+                id="is-active" 
+                checked={newSubscription.is_active}
+                onCheckedChange={(checked) => setNewSubscription({...newSubscription, is_active: checked})}
+              />
+              <Label htmlFor="is-active" className="text-gray-300">Active</Label>
             </div>
           </div>
           
@@ -228,8 +438,14 @@ const SubscriptionsPage: React.FC = () => {
             <Button 
               onClick={handleCreateSubscription}
               className="bg-blue-600 hover:bg-blue-700"
+              disabled={isLoading}
             >
-              Create Subscription
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : 'Create Subscription'}
             </Button>
           </DialogFooter>
         </DialogContent>
