@@ -1,9 +1,28 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { AuthProvider } from "@/contexts/AuthContext";
+
+// Layouts
+import DashboardLayout from "./components/layout/DashboardLayout";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+// Pages
+import Dashboard from "./pages/Dashboard";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import UsersPage from "./pages/UsersPage";
+import LicensesPage from "./pages/LicensesPage";
+import SubscriptionsPage from "./pages/SubscriptionsPage";
+import SettingsPage from "./pages/SettingsPage";
+import WebhooksPage from "./pages/WebhooksPage";
+import LogsPage from "./pages/LogsPage";
+import LoginDetailsPage from "./pages/LoginDetailsPage";
+import AppOpenPage from "./pages/AppOpenPage";
+import EmuUsersPage from "./pages/EmuUsersPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -11,15 +30,35 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            <Route path="/" element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="licenses" element={<LicensesPage />} />
+              <Route path="subscriptions" element={<SubscriptionsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="webhooks" element={<WebhooksPage />} />
+              <Route path="logs" element={<LogsPage />} />
+              <Route path="login-details" element={<LoginDetailsPage />} />
+              <Route path="app-open" element={<AppOpenPage />} />
+              <Route path="emu-users" element={<EmuUsersPage />} />
+            </Route>
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
