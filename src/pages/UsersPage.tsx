@@ -24,6 +24,7 @@ interface User {
   hwid_reset_count: number;
   max_devices: number;
   key: string;
+  password: string; // Added password field to match the database schema
 }
 
 const UsersPage: React.FC = () => {
@@ -45,8 +46,12 @@ const UsersPage: React.FC = () => {
     save_hwid: true,
     hwid_reset_count: 5,
     max_devices: 1,
-    key: ''
+    key: '',
+    password: '' // Added password field to the initial form state
   });
+
+  // Added password state
+  const [password, setPassword] = useState('');
 
   // Fetch users from Supabase
   useEffect(() => {
@@ -92,7 +97,8 @@ const UsersPage: React.FC = () => {
               save_hwid: true,
               hwid_reset_count: 5,
               max_devices: 2,
-              key: 'ABC123'
+              key: 'ABC123',
+              password: 'password123' // Added mock password
             },
             {
               id: 2,
@@ -104,7 +110,8 @@ const UsersPage: React.FC = () => {
               save_hwid: false,
               hwid_reset_count: 3,
               max_devices: 1,
-              key: 'XYZ456'
+              key: 'XYZ456',
+              password: 'password456' // Added mock password
             }
           ]);
         }
@@ -133,10 +140,21 @@ const UsersPage: React.FC = () => {
       return;
     }
     
+    // Ensure password is provided
+    if (!password) {
+      toast({
+        title: "Missing Password",
+        description: "Please provide a password for the user",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       setIsLoading(true);
       
-      const user: Omit<User, 'id'> = {
+      // Create a complete user object with all required fields including password
+      const userToInsert = {
         username: newUser.username || '',
         subscription: newUser.subscription || 'standard',
         expiredate: newUser.expiredate || format(new Date(), 'yyyy-MM-dd'),
@@ -145,7 +163,8 @@ const UsersPage: React.FC = () => {
         save_hwid: newUser.save_hwid !== undefined ? newUser.save_hwid : true,
         hwid_reset_count: newUser.hwid_reset_count || 5,
         max_devices: newUser.max_devices || 1,
-        key: newUser.key || `KEY${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        key: newUser.key || `KEY${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        password: password // Use the password from state
       };
       
       if (isConnected) {
@@ -153,7 +172,7 @@ const UsersPage: React.FC = () => {
         // Fix: Add explicit typing for the insert method
         const { data, error } = await client
           .from('users')
-          .insert(user)
+          .insert(userToInsert)
           .select();
         
         if (error) {
@@ -172,7 +191,7 @@ const UsersPage: React.FC = () => {
       } else {
         // Fallback to local state if no connection
         const newUserWithId = {
-          ...user,
+          ...userToInsert,
           id: users.length ? Math.max(...users.map(u => u.id)) + 1 : 1
         };
         setUsers(prev => [...prev, newUserWithId]);
@@ -181,7 +200,7 @@ const UsersPage: React.FC = () => {
       setIsAddUserOpen(false);
       toast({
         title: "User Created",
-        description: `User ${user.username} has been created successfully`
+        description: `User ${userToInsert.username} has been created successfully`
       });
       
       // Reset form
@@ -194,8 +213,10 @@ const UsersPage: React.FC = () => {
         save_hwid: true,
         hwid_reset_count: 5,
         max_devices: 1,
-        key: ''
+        key: '',
+        password: '' // Reset password field
       });
+      setPassword(''); // Reset password input
     } catch (error) {
       console.error("Error adding user:", error);
       toast({
@@ -361,6 +382,8 @@ const UsersPage: React.FC = () => {
                 type="password" 
                 placeholder="Enter password" 
                 className="bg-[#1a1a1a] border-gray-700 text-white" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             
