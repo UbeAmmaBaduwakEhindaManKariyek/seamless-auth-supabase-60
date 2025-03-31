@@ -5,14 +5,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseKey, setSupabaseKey] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRequiredFields, setShowRequiredFields] = useState(false);
   
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -31,10 +36,21 @@ const RegisterPage: React.FC = () => {
     
     if (!validatePassword()) return;
     
+    if (!supabaseUrl || !supabaseKey) {
+      setShowRequiredFields(true);
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
-      const success = await register({ email, username, password });
+      const success = await register({ 
+        email, 
+        username, 
+        password,
+        supabaseUrl,
+        supabaseKey 
+      });
       if (success) {
         navigate('/');
       }
@@ -45,7 +61,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-      <Card className="w-[350px] bg-[#101010] border-gray-800">
+      <Card className="w-[450px] bg-[#101010] border-gray-800">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold text-white">Create an account</CardTitle>
           <CardDescription className="text-gray-400">
@@ -54,6 +70,15 @@ const RegisterPage: React.FC = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {showRequiredFields && (!supabaseUrl || !supabaseKey) && (
+              <Alert className="bg-red-900 border-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Supabase URL and API key are required for registration.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-gray-300">
                 Email
@@ -111,6 +136,39 @@ const RegisterPage: React.FC = () => {
               {passwordError && (
                 <p className="text-sm text-red-500">{passwordError}</p>
               )}
+            </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="supabaseUrl" className="text-sm font-medium text-gray-300">
+                Supabase URL
+              </label>
+              <Input
+                id="supabaseUrl"
+                placeholder="https://your-project.supabase.co"
+                value={supabaseUrl}
+                onChange={(e) => setSupabaseUrl(e.target.value)}
+                required
+                className="bg-[#1a1a1a] border-gray-700 text-white"
+              />
+              <p className="text-xs text-gray-400">
+                Example: https://tevmesjpsrsiuwswgzfb.supabase.co
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="supabaseKey" className="text-sm font-medium text-gray-300">
+                Supabase API Key
+              </label>
+              <Input
+                id="supabaseKey"
+                placeholder="Your Supabase API Key"
+                value={supabaseKey}
+                onChange={(e) => setSupabaseKey(e.target.value)}
+                required
+                className="bg-[#1a1a1a] border-gray-700 text-white"
+              />
+              <p className="text-xs text-gray-400">
+                Use the anon/public key from your Supabase project settings
+              </p>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">

@@ -6,7 +6,7 @@ import ExampleDownloads from '@/components/examples/ExampleDownloads';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { createCustomClient } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
   const { user, isConnected, checkConnection } = useAuth();
@@ -23,6 +23,9 @@ const Dashboard: React.FC = () => {
 
       setIsTestingConnection(true);
       try {
+        // Initialize the custom client with the user's credentials
+        createCustomClient(user.supabaseUrl, user.supabaseKey);
+        
         const isConnected = await checkConnection();
         if (isConnected) {
           setConnectionStatus('connected');

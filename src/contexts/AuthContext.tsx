@@ -75,25 +75,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check connection by making a simple query
       try {
         // Use a simple query that doesn't depend on specific tables
-        const { data, error } = await customClient.rpc('pg_client_check', {}, { count: 'exact' });
+        const { error: tablesError } = await customClient
+          .from('users')
+          .select('count', { count: 'exact', head: true });
         
-        if (error) {
-          // Try a different approach - check if any table exists
-          const { error: tablesError } = await customClient
-            .from('users')
+        if (tablesError) {
+          // Try a different approach - check if we have access to auth schema tables
+          const { error: authError } = await customClient
+            .from('web_login_regz')
             .select('count', { count: 'exact', head: true });
           
-          if (tablesError) {
-            // One more attempt - check if we have access to auth schema tables
-            const { error: authError } = await customClient
-              .from('web_login_regz')
-              .select('count', { count: 'exact', head: true });
-            
-            if (authError) {
-              console.error("All connection tests failed:", authError);
-              setIsConnected(false);
-              return false;
-            }
+          if (authError) {
+            console.error("All connection tests failed:", authError);
+            setIsConnected(false);
+            return false;
           }
         }
         
@@ -163,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               toast({
                 title: "Login successful",
                 description: "But could not connect to your Supabase project. Please check your Supabase configuration.",
-                variant: "warning"
+                variant: "destructive"
               });
               return true;
             }
@@ -219,32 +214,163 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // For now, this is a mock implementation
-      // In a real app, you would make an API call to register the user
-      
-      // Mock registration success
-      if (credentials.username && credentials.password && credentials.email) {
-        const mockUser: AuthUser = {
-          id: 1,
-          username: credentials.username,
-          email: credentials.email,
-          isAdmin: false
-        };
-        
-        saveUserToStorage(mockUser);
+      // Check if the username already exists
+      if (!credentials.supabaseUrl || !credentials.supabaseKey) {
         toast({
-          title: "Registration successful",
-          description: `Welcome, ${mockUser.username}!`,
+          title: "Registration failed",
+          description: "Supabase URL and API key are required for registration",
+          variant: "destructive",
         });
-        return true;
+        return false;
       }
       
-      toast({
-        title: "Registration failed",
-        description: "Please fill in all required fields",
-        variant: "destructive",
+      // Test the Supabase connection with provided credentials
+      const connected = await checkSupabaseConnection(credentials.supabaseUrl, credentials.supabaseKey);
+      if (!connected) {
+        toast({
+          title: "Connection failed",
+          description: "Could not connect to Supabase with the provided URL and API key",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Create a custom client with the provided credentials
+      const customClient = createCustomClient(credentials.supabaseUrl, credentials.supabaseKey);
+      if (!customClient) {
+        toast({
+          title: "Registration failed",
+          description: "Failed to create Supabase client",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Check if the web_login_regz table exists, if not create it
+      try {
+        const { error: checkTableError } = await customClient
+          .from('web_login_regz')
+          .select('count', { count: 'exact', head: true });
+          
+        if (checkTableError) {
+          console.log("web_login_regz table might not exist, attempting to create it");
+          
+          try {
+            // Create the web_login_regz table if it doesn't exist
+            const { error: createTableError } = await customClient.rpc('pgclient', { 
+              query: `
+                CREATE TABLE IF NOT EXISTS web_login_regz (
+                  id SERIAL PRIMARY KEY,
+                  username TEXT NOT NULL,
+                  email TEXT NOT NULL,
+                  password TEXT NOT NULL,
+                  subscription_type TEXT NOT NULL,
+                  supabase_url TEXT,
+                  supabase_api_key TEXT,
+                  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+                )
+              `
+            });
+            
+            if (createTableError) {
+              console.error("Failed to create web_login_regz table:", createTableError);
+              toast({
+                title: "Registration failed",
+                description: "Could not create required database tables",
+                variant: "destructive",
+              });
+              return false;
+            }
+          } catch (error) {
+            console.error("Error creating web_login_regz table:", error);
+            toast({
+              title: "Registration failed",
+              description: "Could not create required database tables",
+              variant: "destructive",
+            });
+            return false;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking web_login_regz table:", error);
+      }
+      
+      // Check if the username already exists
+      const { data: existingUser, error: checkUserError } = await customClient
+        .from('web_login_regz')
+        .select('username')
+        .eq('username', credentials.username)
+        .maybeSingle();
+        
+      if (checkUserError) {
+        console.error("Error checking for existing user:", checkUserError);
+      }
+      
+      if (existingUser) {
+        toast({
+          title: "Registration failed",
+          description: "Username already exists",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Insert the new user into web_login_regz
+      const { error: insertError } = await customClient.from('web_login_regz').insert({
+        username: credentials.username,
+        email: credentials.email,
+        password: credentials.password, // In a real app, you'd hash this
+        subscription_type: 'user',
+        supabase_url: credentials.supabaseUrl,
+        supabase_api_key: credentials.supabaseKey
       });
-      return false;
+      
+      if (insertError) {
+        console.error("Error inserting new user:", insertError);
+        toast({
+          title: "Registration failed",
+          description: "Failed to create user account",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Get the newly created user
+      const { data: newUser, error: fetchNewUserError } = await customClient
+        .from('web_login_regz')
+        .select('*')
+        .eq('username', credentials.username)
+        .maybeSingle();
+        
+      if (fetchNewUserError) {
+        console.error("Error fetching new user:", fetchNewUserError);
+      }
+      
+      if (newUser) {
+        // Create user object
+        const userWithSupabaseConfig: AuthUser = {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          isAdmin: newUser.subscription_type === 'admin',
+          supabaseUrl: newUser.supabase_url,
+          supabaseKey: newUser.supabase_api_key
+        };
+        
+        saveUserToStorage(userWithSupabaseConfig);
+        toast({
+          title: "Registration successful",
+          description: `Welcome, ${userWithSupabaseConfig.username}!`,
+        });
+        return true;
+      } else {
+        toast({
+          title: "Registration error",
+          description: "User created but failed to retrieve user details",
+          variant: "destructive",
+        });
+        return false;
+      }
     } catch (error) {
       console.error("Registration error:", error);
       toast({
@@ -304,8 +430,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Save credentials to web_login_regz table if connected
         if (user && user.username) {
           try {
-            const client = getActiveClient();
-            const { error } = await client.from('web_login_regz').upsert({
+            const customClient = createCustomClient(url, key);
+            if (!customClient) {
+              console.error("Failed to create custom Supabase client");
+              return false;
+            }
+            
+            // Check if web_login_regz table exists
+            try {
+              const { error: checkTableError } = await customClient
+                .from('web_login_regz')
+                .select('count', { count: 'exact', head: true });
+                
+              if (checkTableError) {
+                console.log("web_login_regz table might not exist, attempting to create it");
+                
+                try {
+                  // Create the web_login_regz table if it doesn't exist
+                  const { error: createTableError } = await customClient.rpc('pgclient', { 
+                    query: `
+                      CREATE TABLE IF NOT EXISTS web_login_regz (
+                        id SERIAL PRIMARY KEY,
+                        username TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        password TEXT NOT NULL,
+                        subscription_type TEXT NOT NULL,
+                        supabase_url TEXT,
+                        supabase_api_key TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+                      )
+                    `
+                  });
+                  
+                  if (createTableError) {
+                    console.error("Failed to create web_login_regz table:", createTableError);
+                  }
+                } catch (error) {
+                  console.error("Error creating web_login_regz table:", error);
+                }
+              }
+            } catch (error) {
+              console.error("Error checking web_login_regz table:", error);
+            }
+            
+            // Upsert user data
+            const { error: upsertError } = await customClient.from('web_login_regz').upsert({
               username: user.username,
               email: user.email || 'admin@example.com',
               password: 'encrypted_password', // In a real app, you'd store this securely
@@ -317,17 +486,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               onConflict: 'username' 
             });
             
-            if (error) {
-              console.error("Failed to save credentials to web_login_regz:", error);
-              // Try to create the table if it doesn't exist
-              await createWebLoginRegzTable(url, key);
+            if (upsertError) {
+              console.error("Failed to save credentials to web_login_regz:", upsertError);
             } else {
               console.log("Successfully saved credentials to web_login_regz table");
             }
           } catch (error) {
             console.error("Error saving to web_login_regz:", error);
-            // Try to create the table if it doesn't exist
-            await createWebLoginRegzTable(url, key);
           }
         }
         
@@ -355,53 +520,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Helper function to create web_login_regz table if it doesn't exist
-  const createWebLoginRegzTable = async (url: string, key: string) => {
-    try {
-      const customClient = createCustomClient(url, key);
-      if (!customClient) return;
-      
-      const { error } = await customClient.rpc('pgclient', { 
-        query: `
-          CREATE TABLE IF NOT EXISTS web_login_regz (
-            id SERIAL PRIMARY KEY,
-            username TEXT NOT NULL,
-            email TEXT NOT NULL,
-            password TEXT NOT NULL,
-            subscription_type TEXT NOT NULL,
-            supabase_url TEXT,
-            supabase_api_key TEXT,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-          )
-        `
-      });
-      
-      if (error) {
-        console.error("Failed to create web_login_regz table:", error);
-      } else {
-        console.log("Successfully created web_login_regz table");
-        
-        // Try inserting the record again
-        if (user?.username) {
-          const { error: insertError } = await customClient.from('web_login_regz').insert({
-            username: user.username,
-            email: user.email || 'admin@example.com',
-            password: 'encrypted_password',
-            subscription_type: 'admin',
-            supabase_url: url,
-            supabase_api_key: key
-          });
-          
-          if (insertError) {
-            console.error("Failed to insert into web_login_regz:", insertError);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error creating web_login_regz table:", error);
     }
   };
 

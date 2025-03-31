@@ -3,6 +3,8 @@ export interface UserCredentials {
   email: string;
   username: string;
   password: string;
+  supabaseUrl?: string;
+  supabaseKey?: string;
 }
 
 export interface LoginCredentials {
