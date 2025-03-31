@@ -28,8 +28,11 @@ export function createCustomClient(url: string, key: string) {
       return null;
     }
 
-    console.log("Creating custom Supabase client with URL:", url);
-    customClientInstance = createClient<Database>(url, key, {
+    // Clean the URL by removing trailing slashes if present
+    const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    
+    console.log("Creating custom Supabase client with URL:", cleanUrl);
+    customClientInstance = createClient<Database>(cleanUrl, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -50,4 +53,19 @@ export function createCustomClient(url: string, key: string) {
  */
 export function getActiveClient() {
   return customClientInstance || supabase;
+}
+
+/**
+ * Reset the custom client instance
+ * Useful for logout or when switching users
+ */
+export function resetCustomClient() {
+  customClientInstance = null;
+}
+
+/**
+ * Check if a custom client is currently active
+ */
+export function hasCustomClient(): boolean {
+  return customClientInstance !== null;
 }

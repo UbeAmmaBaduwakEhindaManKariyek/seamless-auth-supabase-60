@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +44,6 @@ const SettingsPage: React.FC = () => {
   const { toast } = useToast();
   const { isConnected } = useAuth();
   
-  // Fetch app settings from regz_cheat_status table
   useEffect(() => {
     const fetchAppSettings = async () => {
       if (!isConnected) return;
@@ -88,7 +86,6 @@ const SettingsPage: React.FC = () => {
     fetchAppSettings();
   }, [isConnected, toast]);
   
-  // Fetch messages from messages table
   useEffect(() => {
     const fetchMessages = async () => {
       if (!isConnected) return;
@@ -153,9 +150,7 @@ const SettingsPage: React.FC = () => {
     try {
       const client = getActiveClient();
       
-      // Check if we're updating or inserting
       if (appSettings.id) {
-        // Update existing record in regz_cheat_status
         const { error } = await client
           .from('regz_cheat_status')
           .update({
@@ -176,7 +171,6 @@ const SettingsPage: React.FC = () => {
           return;
         }
       } else {
-        // Insert new record in regz_cheat_status
         const { error } = await client
           .from('regz_cheat_status')
           .insert({
@@ -197,12 +191,11 @@ const SettingsPage: React.FC = () => {
         }
       }
       
-      // Also update the app_version table
       const { error: versionError } = await client
         .from('app_version')
         .upsert({
           version: appSettings.version,
-          created_at: new Date()
+          created_at: new Date().toISOString()
         }, {
           onConflict: 'version'
         });
@@ -241,7 +234,6 @@ const SettingsPage: React.FC = () => {
     try {
       const client = getActiveClient();
       
-      // Update or insert welcome message
       const { error: welcomeError } = await client
         .from('messages')
         .upsert({
@@ -261,7 +253,6 @@ const SettingsPage: React.FC = () => {
         return;
       }
       
-      // Update or insert login message
       const { error: loginError } = await client
         .from('messages')
         .upsert({

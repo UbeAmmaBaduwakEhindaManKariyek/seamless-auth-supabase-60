@@ -13,7 +13,7 @@ const SupabaseSetup: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const { saveSupabaseConfig, user, isConnected } = useAuth();
+  const { saveSupabaseConfig, user, isConnected, checkConnection } = useAuth();
 
   // Initialize with saved values if available
   useEffect(() => {
@@ -38,25 +38,14 @@ const SupabaseSetup: React.FC = () => {
   };
 
   const testConnection = async () => {
+    if (!url || !apiKey) {
+      return;
+    }
+    
     setIsTestingConnection(true);
     try {
-      const client = getActiveClient();
-      // Fix: Add explicit typing for the select method
-      const { data, error } = await client
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .limit(0);
-      
-      if (error) {
-        console.error("Connection test failed:", error);
-        return false;
-      }
-      
-      console.log("Connection test successful:", data);
-      return true;
-    } catch (error) {
-      console.error("Connection test error:", error);
-      return false;
+      const success = await saveSupabaseConfig(url, apiKey);
+      return success;
     } finally {
       setIsTestingConnection(false);
     }

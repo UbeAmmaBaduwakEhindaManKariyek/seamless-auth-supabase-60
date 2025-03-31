@@ -1,19 +1,54 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const InstallTables: React.FC = () => {
   const [isInstalling, setIsInstalling] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCheckingTables, setIsCheckingTables] = useState(true);
+  const [tablesExist, setTablesExist] = useState<boolean>(false);
   const { user, isConnected } = useAuth();
   const { toast } = useToast();
+  
+  // Check if tables already exist
+  useEffect(() => {
+    const checkTables = async () => {
+      if (!user?.supabaseUrl || !user?.supabaseKey || !isConnected) {
+        setIsCheckingTables(false);
+        return;
+      }
+      
+      try {
+        const supabase = createClient(user.supabaseUrl, user.supabaseKey);
+        
+        // Try to check if users table exists (one of the main tables)
+        const { data, error } = await supabase
+          .from('users')
+          .select('count', { count: 'exact', head: true });
+          
+        if (!error) {
+          setTablesExist(true);
+          setIsCompleted(true);
+        } else {
+          setTablesExist(false);
+        }
+      } catch (error) {
+        console.error("Error checking tables:", error);
+        setTablesExist(false);
+      } finally {
+        setIsCheckingTables(false);
+      }
+    };
+    
+    checkTables();
+  }, [user, isConnected]);
   
   const handleInstall = async () => {
     if (!user?.supabaseUrl || !user?.supabaseKey) {
@@ -169,6 +204,19 @@ const InstallTables: React.FC = () => {
         )
         `,
         `
+        create table if not exists public.web_login_regz (
+          id serial not null,
+          username text not null,
+          email text not null,
+          password text not null,
+          subscription_type text not null,
+          supabase_url text null,
+          supabase_api_key text null,
+          created_at timestamp with time zone not null default now(),
+          constraint web_login_regz_pkey primary key (id)
+        )
+        `,
+        `
         create or replace function public.generate_random_key()
         returns trigger
         language plpgsql
@@ -186,18 +234,37 @@ const InstallTables: React.FC = () => {
         `
       ];
       
-      // Execute each SQL statement
+      // Try to use rpc first, which is more reliable for executing SQL
       for (const sql of sqlStatements) {
-        const { error: sqlError } = await supabase.rpc('pgclient', { query: sql });
-        if (sqlError) {
-          console.error("Error executing SQL:", sqlError);
-          setError(`Failed to create tables: ${sqlError.message}`);
+        try {
+          const { error: rpcError } = await supabase.rpc('pgclient', { query: sql });
+          if (rpcError) {
+            console.error("Error executing SQL via RPC:", rpcError);
+            
+            // Fallback to direct SQL (this will only work if SQL permissions are granted)
+            try {
+              const { error: sqlError } = await supabase.from('migrations').select('*');
+              if (sqlError) {
+                setError(`Failed to create tables. Please make sure your Supabase account has sufficient permissions.`);
+                setIsInstalling(false);
+                return;
+              }
+            } catch (directError) {
+              setError(`Failed to create tables: ${directError instanceof Error ? directError.message : 'Unknown error'}`);
+              setIsInstalling(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Error executing SQL statement:", err);
+          setError(`Failed to create tables: ${err instanceof Error ? err.message : 'Unknown error'}`);
           setIsInstalling(false);
           return;
         }
       }
       
       setIsCompleted(true);
+      setTablesExist(true);
       toast({
         title: "Tables installed successfully",
         description: "All required database tables have been created",
@@ -224,7 +291,20 @@ const InstallTables: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isCompleted && (
+        {isCheckingTables ? (
+          <div className="flex items-center space-x-2 text-gray-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Checking for existing tables...</span>
+          </div>
+        ) : tablesExist ? (
+          <Alert className="bg-green-900 border-green-700">
+            <CheckCircle className="h-4 w-4" />
+            <AlertTitle>Tables already exist</AlertTitle>
+            <AlertDescription>
+              All necessary database tables have been found in your Supabase project.
+            </AlertDescription>
+          </Alert>
+        ) : isCompleted ? (
           <Alert className="bg-green-900 border-green-700">
             <CheckCircle className="h-4 w-4" />
             <AlertTitle>Tables installed successfully</AlertTitle>
@@ -232,7 +312,7 @@ const InstallTables: React.FC = () => {
               All database tables have been created in your Supabase project.
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
         
         {isInstalling && (
           <Alert className="bg-blue-900 border-blue-700">
@@ -266,6 +346,7 @@ const InstallTables: React.FC = () => {
             <li>regz_cheat_status</li>
             <li>subscription_types</li>
             <li>users</li>
+            <li>web_login_regz</li>
           </ul>
         </div>
       </CardContent>
@@ -273,9 +354,9 @@ const InstallTables: React.FC = () => {
         <Button 
           onClick={handleInstall} 
           className="w-full bg-blue-600 hover:bg-blue-700"
-          disabled={isInstalling || isCompleted || !isConnected}
+          disabled={isInstalling || (!isConnected) || tablesExist}
         >
-          {isInstalling ? 'Installing...' : isCompleted ? 'Tables Installed' : 'Install All Tables'}
+          {isInstalling ? 'Installing...' : tablesExist ? 'Tables Already Installed' : 'Install All Tables'}
         </Button>
       </CardFooter>
     </Card>

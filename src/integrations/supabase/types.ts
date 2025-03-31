@@ -269,36 +269,54 @@ export type Database = {
       }
       license_keys: {
         Row: {
-          created_at: string | null
-          expired_at: string | null
-          id: string
-          is_active: boolean | null
-          key: string
-          user_id: number | null
+          admin_approval: boolean | null
+          banned: boolean | null
+          expiredate: string | null
+          hwid: string[] | null
+          hwid_reset_count: number | null
+          id: number
+          key: string | null
+          license_key: string
+          max_devices: number | null
+          mobile_number: string | null
+          save_hwid: boolean | null
+          subscription: string | null
         }
         Insert: {
-          created_at?: string | null
-          expired_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          key: string
-          user_id?: number | null
+          admin_approval?: boolean | null
+          banned?: boolean | null
+          expiredate?: string | null
+          hwid?: string[] | null
+          hwid_reset_count?: number | null
+          id?: number
+          key?: string | null
+          license_key: string
+          max_devices?: number | null
+          mobile_number?: string | null
+          save_hwid?: boolean | null
+          subscription?: string | null
         }
         Update: {
-          created_at?: string | null
-          expired_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          key?: string
-          user_id?: number | null
+          admin_approval?: boolean | null
+          banned?: boolean | null
+          expiredate?: string | null
+          hwid?: string[] | null
+          hwid_reset_count?: number | null
+          id?: number
+          key?: string | null
+          license_key?: string
+          max_devices?: number | null
+          mobile_number?: string | null
+          save_hwid?: boolean | null
+          subscription?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "license_keys_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "fk_subscription"
+            columns: ["subscription"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
+            referencedRelation: "subscription_types"
+            referencedColumns: ["name"]
           },
         ]
       }
@@ -538,6 +556,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_random_license_key: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       select_five_random_winners: {
         Args: Record<PropertyKey, never>
         Returns: undefined

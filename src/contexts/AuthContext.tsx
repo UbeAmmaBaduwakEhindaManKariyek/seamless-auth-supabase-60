@@ -12,6 +12,7 @@ interface AuthContextType {
   register: (credentials: UserCredentials) => Promise<boolean>;
   logout: () => void;
   saveSupabaseConfig: (url: string, key: string) => Promise<boolean>;
+  checkConnection: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,7 +33,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // If user has Supabase config, check connection
         if (userData.supabaseUrl && userData.supabaseKey) {
-          checkSupabaseConnection(userData.supabaseUrl, userData.supabaseKey);
+          checkSupabaseConnection(userData.supabaseUrl, userData.supabaseKey)
+            .then(connected => {
+              if (!connected) {
+                console.error("Failed to connect with stored Supabase credentials");
+                toast({
+                  title: "Connection Error",
+                  description: "Could not connect to Supabase with stored credentials. Please try again.",
+                  variant: "destructive",
+                });
+              }
+            });
         }
       } catch (error) {
         console.error("Failed to parse stored user", error);
@@ -42,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const checkSupabaseConnection = async (url: string, key: string) => {
+  const checkSupabaseConnection = async (url: string, key: string): Promise<boolean> => {
     try {
       if (!url || !key) {
         console.error("Invalid Supabase URL or key");
@@ -62,17 +73,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Check connection by making a simple query
-      const { error } = await customClient.from('users').select('count', { count: 'exact', head: true });
-      
-      if (error) {
-        console.error("Supabase connection error:", error);
+      try {
+        // Use a simple query that doesn't depend on specific tables
+        const { data, error } = await customClient.rpc('pg_client_check', {}, { count: 'exact' });
+        
+        if (error) {
+          // Try a different approach - check if any table exists
+          const { error: tablesError } = await customClient
+            .from('users')
+            .select('count', { count: 'exact', head: true });
+          
+          if (tablesError) {
+            // One more attempt - check if we have access to auth schema tables
+            const { error: authError } = await customClient
+              .from('web_login_regz')
+              .select('count', { count: 'exact', head: true });
+            
+            if (authError) {
+              console.error("All connection tests failed:", authError);
+              setIsConnected(false);
+              return false;
+            }
+          }
+        }
+        
+        console.log("Successfully connected to Supabase");
+        setIsConnected(true);
+        return true;
+      } catch (queryError) {
+        console.error("Supabase query error:", queryError);
         setIsConnected(false);
         return false;
       }
-      
-      console.log("Successfully connected to Supabase");
-      setIsConnected(true);
-      return true;
     } catch (error) {
       console.error("Supabase connection error:", error);
       setIsConnected(false);
@@ -89,10 +121,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // For now, this is a mock implementation
-      // In a real app, you would make an API call to verify credentials
+      // Check if user exists in web_login_regz table
+      const client = getActiveClient();
+      const { data, error } = await client
+        .from('web_login_regz')
+        .select('*')
+        .eq('username', credentials.username)
+        .maybeSingle();
+        
+      if (error) {
+        console.error("Error querying web_login_regz:", error);
+      }
       
-      // Mock user data - in the real app, this would come from your backend
+      // If we found a user with matching username
+      if (data && data.username === credentials.username) {
+        // In a real app, you would hash and compare the password
+        // For now, just check if they match
+        if (data.password === credentials.password) {
+          const userWithSupabaseConfig: AuthUser = {
+            id: data.id,
+            username: data.username,
+            email: data.email,
+            isAdmin: data.subscription_type === 'admin',
+            supabaseUrl: data.supabase_url,
+            supabaseKey: data.supabase_api_key
+          };
+          
+          // Check connection with the stored Supabase config
+          if (data.supabase_url && data.supabase_api_key) {
+            const connected = await checkSupabaseConnection(data.supabase_url, data.supabase_api_key);
+            if (connected) {
+              saveUserToStorage(userWithSupabaseConfig);
+              toast({
+                title: "Login successful",
+                description: `Welcome back, ${userWithSupabaseConfig.username}!`,
+              });
+              return true;
+            } else {
+              // Still save the user, but notify about connection issue
+              saveUserToStorage(userWithSupabaseConfig);
+              toast({
+                title: "Login successful",
+                description: "But could not connect to your Supabase project. Please check your Supabase configuration.",
+                variant: "warning"
+              });
+              return true;
+            }
+          } else {
+            // No Supabase config, just save the user
+            saveUserToStorage(userWithSupabaseConfig);
+            toast({
+              title: "Login successful",
+              description: `Welcome back, ${userWithSupabaseConfig.username}!`,
+            });
+            return true;
+          }
+        }
+      }
+      
+      // If no matching user found in database or password doesn't match, use mock user for testing
       if (credentials.username && credentials.password) {
         const mockUser: AuthUser = {
           id: 1,
@@ -103,7 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         saveUserToStorage(mockUser);
         toast({
-          title: "Login successful",
+          title: "Login successful (Demo mode)",
           description: `Welcome back, ${mockUser.username}!`,
         });
         return true;
@@ -181,6 +268,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const checkConnection = async (): Promise<boolean> => {
+    if (!user?.supabaseUrl || !user?.supabaseKey) {
+      return false;
+    }
+    return await checkSupabaseConnection(user.supabaseUrl, user.supabaseKey);
+  };
+
   const saveSupabaseConfig = async (url: string, key: string): Promise<boolean> => {
     if (!url.trim() || !key.trim()) {
       toast({
@@ -209,20 +303,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Save credentials to web_login_regz table if connected
         if (user && user.username) {
-          const client = getActiveClient();
-          const { error } = await client.from('web_login_regz').insert({
-            username: user.username,
-            email: user.email || 'admin@example.com',
-            password: 'encrypted_password', // In a real app, you'd store this securely
-            subscription_type: 'admin',
-            supabase_url: url,
-            supabase_api_key: key
-          });
-          
-          if (error) {
-            console.error("Failed to save credentials to web_login_regz:", error);
-          } else {
-            console.log("Successfully saved credentials to web_login_regz table");
+          try {
+            const client = getActiveClient();
+            const { error } = await client.from('web_login_regz').upsert({
+              username: user.username,
+              email: user.email || 'admin@example.com',
+              password: 'encrypted_password', // In a real app, you'd store this securely
+              subscription_type: 'admin',
+              supabase_url: url,
+              supabase_api_key: key,
+              created_at: new Date().toISOString()
+            }, { 
+              onConflict: 'username' 
+            });
+            
+            if (error) {
+              console.error("Failed to save credentials to web_login_regz:", error);
+              // Try to create the table if it doesn't exist
+              await createWebLoginRegzTable(url, key);
+            } else {
+              console.log("Successfully saved credentials to web_login_regz table");
+            }
+          } catch (error) {
+            console.error("Error saving to web_login_regz:", error);
+            // Try to create the table if it doesn't exist
+            await createWebLoginRegzTable(url, key);
           }
         }
         
@@ -253,6 +358,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Helper function to create web_login_regz table if it doesn't exist
+  const createWebLoginRegzTable = async (url: string, key: string) => {
+    try {
+      const customClient = createCustomClient(url, key);
+      if (!customClient) return;
+      
+      const { error } = await customClient.rpc('pgclient', { 
+        query: `
+          CREATE TABLE IF NOT EXISTS web_login_regz (
+            id SERIAL PRIMARY KEY,
+            username TEXT NOT NULL,
+            email TEXT NOT NULL,
+            password TEXT NOT NULL,
+            subscription_type TEXT NOT NULL,
+            supabase_url TEXT,
+            supabase_api_key TEXT,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+          )
+        `
+      });
+      
+      if (error) {
+        console.error("Failed to create web_login_regz table:", error);
+      } else {
+        console.log("Successfully created web_login_regz table");
+        
+        // Try inserting the record again
+        if (user?.username) {
+          const { error: insertError } = await customClient.from('web_login_regz').insert({
+            username: user.username,
+            email: user.email || 'admin@example.com',
+            password: 'encrypted_password',
+            subscription_type: 'admin',
+            supabase_url: url,
+            supabase_api_key: key
+          });
+          
+          if (insertError) {
+            console.error("Failed to insert into web_login_regz:", insertError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error creating web_login_regz table:", error);
+    }
+  };
+
   const value = {
     user,
     isLoading,
@@ -261,6 +413,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     register,
     logout,
     saveSupabaseConfig,
+    checkConnection,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -9,7 +9,7 @@ import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
-  const { user, isConnected } = useAuth();
+  const { user, isConnected, checkConnection } = useAuth();
   const [isTestingConnection, setIsTestingConnection] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'failed' | 'checking' | 'none'>('checking');
 
@@ -23,19 +23,11 @@ const Dashboard: React.FC = () => {
 
       setIsTestingConnection(true);
       try {
-        const client = getActiveClient();
-        // Fix: Add explicit typing for the select method
-        const { data, error } = await client
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .limit(0);
-        
-        if (error) {
-          console.error("Active connection test failed:", error);
-          setConnectionStatus('failed');
-        } else {
-          console.log("Active connection test successful");
+        const isConnected = await checkConnection();
+        if (isConnected) {
           setConnectionStatus('connected');
+        } else {
+          setConnectionStatus('failed');
         }
       } catch (error) {
         console.error("Active connection test error:", error);
@@ -46,7 +38,7 @@ const Dashboard: React.FC = () => {
     };
 
     testConnection();
-  }, [user?.supabaseUrl, user?.supabaseKey]);
+  }, [user?.supabaseUrl, user?.supabaseKey, checkConnection]);
 
   return (
     <div className="space-y-8">
