@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -24,14 +23,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check for stored user on mount
     const storedUser = localStorage.getItem("keyauth_user");
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         
-        // If user has Supabase config, check connection
         if (userData.supabaseUrl && userData.supabaseKey) {
           checkSupabaseConnection(userData.supabaseUrl, userData.supabaseKey)
             .then(connected => {
@@ -63,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Attempting to connect to Supabase with URL:", url);
       
-      // Create a custom client with the provided credentials
       const customClient = createCustomClient(url, key);
       
       if (!customClient) {
@@ -72,15 +68,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Check connection by making a simple query
       try {
-        // Use a simple query that doesn't depend on specific tables
         const { error: tablesError } = await customClient
           .from('users')
           .select('count', { count: 'exact', head: true });
         
         if (tablesError) {
-          // Try a different approach - check if we have access to auth schema tables
           const { error: authError } = await customClient
             .from('web_login_regz')
             .select('count', { count: 'exact', head: true });
@@ -116,7 +109,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // Check if user exists in web_login_regz table
       const client = getActiveClient();
       const { data, error } = await client
         .from('web_login_regz')
@@ -128,10 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error querying web_login_regz:", error);
       }
       
-      // If we found a user with matching username
       if (data && data.username === credentials.username) {
-        // In a real app, you would hash and compare the password
-        // For now, just check if they match
         if (data.password === credentials.password) {
           const userWithSupabaseConfig: AuthUser = {
             id: data.id,
@@ -142,7 +131,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             supabaseKey: data.supabase_api_key
           };
           
-          // Check connection with the stored Supabase config
           if (data.supabase_url && data.supabase_api_key) {
             const connected = await checkSupabaseConnection(data.supabase_url, data.supabase_api_key);
             if (connected) {
@@ -153,7 +141,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
               return true;
             } else {
-              // Still save the user, but notify about connection issue
               saveUserToStorage(userWithSupabaseConfig);
               toast({
                 title: "Login successful",
@@ -163,7 +150,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return true;
             }
           } else {
-            // No Supabase config, just save the user
             saveUserToStorage(userWithSupabaseConfig);
             toast({
               title: "Login successful",
@@ -174,7 +160,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // If no matching user found in database or password doesn't match, use mock user for testing
       if (credentials.username && credentials.password) {
         const mockUser: AuthUser = {
           id: 1,
@@ -214,7 +199,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // Check if the username already exists
       if (!credentials.supabaseUrl || !credentials.supabaseKey) {
         toast({
           title: "Registration failed",
@@ -224,7 +208,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Test the Supabase connection with provided credentials
       const connected = await checkSupabaseConnection(credentials.supabaseUrl, credentials.supabaseKey);
       if (!connected) {
         toast({
@@ -235,7 +218,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Create a custom client with the provided credentials
       const customClient = createCustomClient(credentials.supabaseUrl, credentials.supabaseKey);
       if (!customClient) {
         toast({
@@ -246,7 +228,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Check if the web_login_regz table exists, if not create it
       try {
         const { error: checkTableError } = await customClient
           .from('web_login_regz')
@@ -256,21 +237,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("web_login_regz table might not exist, attempting to create it");
           
           try {
-            // Create the web_login_regz table if it doesn't exist using raw SQL query
-            const { error: createTableError } = await customClient.rpc('execute_sql', { 
-              sql_query: `
-                CREATE TABLE IF NOT EXISTS web_login_regz (
-                  id SERIAL PRIMARY KEY,
-                  username TEXT NOT NULL,
-                  email TEXT NOT NULL,
-                  password TEXT NOT NULL,
-                  subscription_type TEXT NOT NULL,
-                  supabase_url TEXT,
-                  supabase_api_key TEXT,
-                  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-                )
-              `
-            });
+            const { error: createTableError } = await executeRawSql(`
+              CREATE TABLE IF NOT EXISTS web_login_regz (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                email TEXT NOT NULL,
+                password TEXT NOT NULL,
+                subscription_type TEXT NOT NULL,
+                supabase_url TEXT,
+                supabase_api_key TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+              )
+            `);
             
             if (createTableError) {
               console.error("Failed to create web_login_regz table:", createTableError);
@@ -295,7 +273,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error checking web_login_regz table:", error);
       }
       
-      // Check if the username already exists
       const { data: existingUser, error: checkUserError } = await customClient
         .from('web_login_regz')
         .select('username')
@@ -315,11 +292,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Insert the new user into web_login_regz
       const { error: insertError } = await customClient.from('web_login_regz').insert({
         username: credentials.username,
         email: credentials.email,
-        password: credentials.password, // In a real app, you'd hash this
+        password: credentials.password,
         subscription_type: 'user',
         supabase_url: credentials.supabaseUrl,
         supabase_api_key: credentials.supabaseKey
@@ -335,7 +311,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Get the newly created user
       const { data: newUser, error: fetchNewUserError } = await customClient
         .from('web_login_regz')
         .select('*')
@@ -347,7 +322,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       if (newUser) {
-        // Create user object
         const userWithSupabaseConfig: AuthUser = {
           id: newUser.id,
           username: newUser.username,
@@ -427,7 +401,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: true
         };
         
-        // Save credentials to web_login_regz table if connected
         if (user && user.username) {
           try {
             const customClient = createCustomClient(url, key);
@@ -436,48 +409,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return false;
             }
             
-            // Check if web_login_regz table exists
-            try {
-              const { error: checkTableError } = await customClient
-                .from('web_login_regz')
-                .select('count', { count: 'exact', head: true });
+            const { error: checkTableError } = await customClient
+              .from('web_login_regz')
+              .select('count', { count: 'exact', head: true });
+              
+            if (checkTableError) {
+              console.log("web_login_regz table might not exist, attempting to create it");
+              
+              try {
+                const { error: createTableError } = await executeRawSql(`
+                  CREATE TABLE IF NOT EXISTS web_login_regz (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    subscription_type TEXT NOT NULL,
+                    supabase_url TEXT,
+                    supabase_api_key TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+                  )
+                `);
                 
-              if (checkTableError) {
-                console.log("web_login_regz table might not exist, attempting to create it");
-                
-                try {
-                  // Create the web_login_regz table if it doesn't exist using raw SQL query
-                  const { error: createTableError } = await customClient.rpc('execute_sql', { 
-                    sql_query: `
-                      CREATE TABLE IF NOT EXISTS web_login_regz (
-                        id SERIAL PRIMARY KEY,
-                        username TEXT NOT NULL,
-                        email TEXT NOT NULL,
-                        password TEXT NOT NULL,
-                        subscription_type TEXT NOT NULL,
-                        supabase_url TEXT,
-                        supabase_api_key TEXT,
-                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-                      )
-                    `
-                  });
-                  
-                  if (createTableError) {
-                    console.error("Failed to create web_login_regz table:", createTableError);
-                  }
-                } catch (error) {
-                  console.error("Error creating web_login_regz table:", error);
+                if (createTableError) {
+                  console.error("Failed to create web_login_regz table:", createTableError);
                 }
+              } catch (error) {
+                console.error("Error creating web_login_regz table:", error);
               }
-            } catch (error) {
-              console.error("Error checking web_login_regz table:", error);
             }
             
-            // Upsert user data
             const { error: upsertError } = await customClient.from('web_login_regz').upsert({
               username: user.username,
               email: user.email || 'admin@example.com',
-              password: 'encrypted_password', // In a real app, you'd store this securely
+              password: 'encrypted_password',
               subscription_type: 'admin',
               supabase_url: url,
               supabase_api_key: key,

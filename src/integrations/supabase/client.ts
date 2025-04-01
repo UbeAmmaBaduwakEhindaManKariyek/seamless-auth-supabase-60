@@ -46,17 +46,20 @@ export function createCustomClient(url: string, key: string) {
       }
     });
     
-    // Add custom RPC function to execute SQL queries
-    customClientInstance.rpc.execute_sql = function(sql_query: string) {
-      return customClientInstance!.rpc('execute_sql', { sql_query });
-    };
-    
     return customClientInstance;
   } catch (error) {
     console.error("Error creating custom Supabase client:", error);
     customClientInstance = null;
     return null;
   }
+}
+
+/**
+ * Execute a raw SQL query using the active Supabase client
+ */
+export async function executeRawSql(sqlQuery: string) {
+  const client = getActiveClient();
+  return client.rpc('execute_sql', { sql_query: sqlQuery });
 }
 
 /**
@@ -82,9 +85,9 @@ export function hasCustomClient(): boolean {
   return customClientInstance !== null;
 }
 
-// Add execute_sql RPC function type
+// Add the executeRawSql method explicitly to the SupabaseClient type
 declare module '@supabase/supabase-js' {
-  interface SupabaseRPC {
-    execute_sql(sql_query: string): Promise<any>;
+  interface SupabaseClient<Database> {
+    rpc(fn: 'execute_sql', args: { sql_query: string }): Promise<any>;
   }
 }
