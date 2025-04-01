@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PlusCircle, Download, Search, Loader2, Trash2, Copy } from 'lucide-react';
+import { PlusCircle, Download, Search, Loader2, Trash2, Copy, Calendar } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -21,8 +21,10 @@ const LicensesPage: React.FC = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newLicenseKey, setNewLicenseKey] = useState('');
   const [newLicenseExpiry, setNewLicenseExpiry] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [subscriptions, setSubscriptions] = useState<string[]>([]);
+  const [selectedSubscription, setSelectedSubscription] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const { toast } = useToast();
   const { isConnected } = useAuth();
@@ -123,6 +125,39 @@ const LicensesPage: React.FC = () => {
     };
     
     fetchLicenses();
+    
+    // Fetch subscription types
+    const fetchSubscriptionTypes = async () => {
+      if (!isConnected) return;
+      
+      try {
+        const client = getActiveClient();
+        const { data, error } = await client
+          .from('subscription_types')
+          .select('name')
+          .eq('is_active', true);
+        
+        if (error) {
+          console.error("Error fetching subscription types:", error);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          const types = data.map(item => item.name);
+          setSubscriptions(types);
+          if (types.length > 0) setSelectedSubscription(types[0]);
+        } else {
+          // Mock data
+          setSubscriptions(['Standard', 'Premium', 'Enterprise']);
+          setSelectedSubscription('Standard');
+        }
+      } catch (error) {
+        console.error("Failed to fetch subscription types:", error);
+      }
+    };
+    
+    fetchSubscriptionTypes();
+    
   }, [isConnected, toast]);
   
   const filteredLicenses = licenses.filter(license => 
@@ -147,7 +182,7 @@ const LicensesPage: React.FC = () => {
     }
     
     const csvContent = [
-      ['ID', 'License Key', 'User ID', 'Username', 'Created At', 'Expires At', 'Status'].join(','),
+      ['ID', 'License Key', 'User ID', 'Username', 'Created At', 'Expires At', 'Status', 'Subscription'].join(','),
       ...filteredLicenses.map(license => [
         license.id,
         license.license_key,
@@ -155,7 +190,8 @@ const LicensesPage: React.FC = () => {
         license.username || '',
         license.created_at,
         license.expiredate || '',
-        license.is_active ? 'Active' : 'Inactive'
+        license.is_active ? 'Active' : 'Inactive',
+        license.subscription || ''
       ].join(','))
     ].join('\n');
     
@@ -219,7 +255,8 @@ const LicensesPage: React.FC = () => {
             expiredate: expiredate,
             banned: false,
             admin_approval: true,
-            save_hwid: true
+            save_hwid: true,
+            subscription: selectedSubscription || null
           })
           .select();
         
@@ -261,6 +298,7 @@ const LicensesPage: React.FC = () => {
           user_id: null,
           created_at: new Date().toISOString(),
           expiredate: newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null,
+          subscription: selectedSubscription,
           is_active: true
         };
         
@@ -276,6 +314,7 @@ const LicensesPage: React.FC = () => {
       // Reset form
       setNewLicenseKey('');
       setNewLicenseExpiry('');
+      setSelectedSubscription(subscriptions[0] || '');
     } catch (error) {
       console.error("Failed to create license:", error);
       toast({
@@ -297,6 +336,50 @@ const LicensesPage: React.FC = () => {
     }).catch(err => {
       console.error("Failed to copy:", err);
     });
+  };
+  
+  const handleDeleteLicense = async (id: number) => {
+    if (!isConnected) {
+      toast({
+        title: "Not Connected",
+        description: "Please connect to Supabase first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      const client = getActiveClient();
+      
+      const { error } = await client
+        .from('license_keys')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error("Error deleting license:", error);
+        toast({
+          title: "Failed to delete license",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setLicenses(prev => prev.filter(license => license.id !== id));
+      
+      toast({
+        title: "License Deleted",
+        description: "The license key has been deleted successfully"
+      });
+    } catch (error) {
+      console.error("Failed to delete license:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
   };
   
   return (
@@ -369,6 +452,7 @@ const LicensesPage: React.FC = () => {
               <TableHead className="text-gray-300">License Key</TableHead>
               <TableHead className="text-gray-300">Status</TableHead>
               <TableHead className="text-gray-300">User</TableHead>
+              <TableHead className="text-gray-300">Subscription</TableHead>
               <TableHead className="text-gray-300">Created At</TableHead>
               <TableHead className="text-gray-300">Expires</TableHead>
               <TableHead className="text-gray-300 text-right">Actions</TableHead>
@@ -377,7 +461,7 @@ const LicensesPage: React.FC = () => {
           <TableBody>
             {isLoading ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                <TableCell colSpan={7} className="text-center py-10 text-gray-400">
                   <div className="flex items-center justify-center">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
                     <span>Loading licenses...</span>
@@ -386,7 +470,7 @@ const LicensesPage: React.FC = () => {
               </TableRow>
             ) : displayedLicenses.length === 0 ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                <TableCell colSpan={7} className="text-center py-10 text-gray-400">
                   {searchTerm ? "No matching licenses found" : "No licenses found. Create a license to get started."}
                 </TableCell>
               </TableRow>
@@ -414,6 +498,7 @@ const LicensesPage: React.FC = () => {
                     </span>
                   </TableCell>
                   <TableCell className="text-white">{license.username || 'Unassigned'}</TableCell>
+                  <TableCell className="text-white">{license.subscription || 'None'}</TableCell>
                   <TableCell className="text-white">
                     {license.created_at ? format(new Date(license.created_at), 'yyyy-MM-dd') : 'N/A'}
                   </TableCell>
@@ -428,6 +513,7 @@ const LicensesPage: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                      onClick={() => handleDeleteLicense(license.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -496,7 +582,29 @@ const LicensesPage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-              <label htmlFor="expiryDate" className="text-sm font-medium text-gray-300">Expiration Date (optional)</label>
+              <label htmlFor="subscription" className="text-sm font-medium text-gray-300">Subscription Type</label>
+              <Select 
+                value={selectedSubscription} 
+                onValueChange={setSelectedSubscription}
+              >
+                <SelectTrigger className="bg-[#1a1a1a] border-gray-700 text-white">
+                  <SelectValue placeholder="Select subscription type" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white">
+                  {subscriptions.map(sub => (
+                    <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="expiryDate" className="text-sm font-medium text-gray-300">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Expiration Date (optional)</span>
+                </div>
+              </label>
               <Input 
                 id="expiryDate" 
                 type="date" 

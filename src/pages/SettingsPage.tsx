@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PlusCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface AppSettings {
   id?: number;
@@ -21,6 +23,12 @@ interface Message {
   id?: number;
   type: string;
   text: string;
+}
+
+interface Version {
+  id: number;
+  version: string;
+  created_at: string;
 }
 
 const SettingsPage: React.FC = () => {
@@ -40,6 +48,12 @@ const SettingsPage: React.FC = () => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingMessages, setIsSavingMessages] = useState(false);
+  
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+  const [newVersion, setNewVersion] = useState('');
+  const [isAddingVersion, setIsAddingVersion] = useState(false);
   
   const { toast } = useToast();
   const { isConnected } = useAuth();
@@ -128,6 +142,41 @@ const SettingsPage: React.FC = () => {
     fetchMessages();
   }, [isConnected, toast]);
   
+  useEffect(() => {
+    const fetchVersions = async () => {
+      if (!isConnected) return;
+      
+      setIsLoadingVersions(true);
+      try {
+        const client = getActiveClient();
+        const { data, error } = await client
+          .from('app_version')
+          .select('*')
+          .order('id', { ascending: false });
+          
+        if (error) {
+          console.error("Error fetching app versions:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load application versions",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (data) {
+          setVersions(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch app versions:", error);
+      } finally {
+        setIsLoadingVersions(false);
+      }
+    };
+    
+    fetchVersions();
+  }, [isConnected, toast]);
+  
   const handleAppSettingsChange = (key: keyof AppSettings, value: string) => {
     setAppSettings(prev => ({ ...prev, [key]: value }));
   };
@@ -202,6 +251,15 @@ const SettingsPage: React.FC = () => {
         
       if (versionError) {
         console.error("Error updating app version:", versionError);
+      } else {
+        const { data } = await client
+          .from('app_version')
+          .select('*')
+          .order('id', { ascending: false });
+          
+        if (data) {
+          setVersions(data);
+        }
       }
       
       toast({
@@ -286,6 +344,78 @@ const SettingsPage: React.FC = () => {
     } finally {
       setIsSavingMessages(false);
     }
+  };
+  
+  const handleAddVersion = async () => {
+    if (!isConnected) {
+      toast({
+        title: "Not Connected",
+        description: "Please connect to Supabase first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!newVersion.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid version",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsAddingVersion(true);
+    try {
+      const client = getActiveClient();
+      
+      const { error } = await client
+        .from('app_version')
+        .insert({
+          version: newVersion,
+          created_at: new Date().toISOString()
+        });
+        
+      if (error) {
+        console.error("Error adding app version:", error);
+        toast({
+          title: "Error",
+          description: "Failed to add new version",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const { data } = await client
+        .from('app_version')
+        .select('*')
+        .order('id', { ascending: false });
+        
+      if (data) {
+        setVersions(data);
+      }
+      
+      toast({
+        title: "Version Added",
+        description: `Version ${newVersion} has been added successfully`,
+      });
+      
+      setNewVersion('');
+      setIsVersionDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add version:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAddingVersion(false);
+    }
+  };
+  
+  const handleSelectVersion = (version: string) => {
+    setAppSettings(prev => ({ ...prev, version }));
   };
   
   return (
@@ -381,6 +511,75 @@ const SettingsPage: React.FC = () => {
         
         <Card className="bg-[#101010] border-gray-800">
           <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="text-xl font-bold text-white">Version Management</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Manage application versions
+                </CardDescription>
+              </div>
+              <Button 
+                onClick={() => setIsVersionDialogOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+                size="sm"
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Version
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingVersions ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span className="text-gray-400">Loading versions...</span>
+              </div>
+            ) : (
+              <div className="border border-gray-800 rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-[#0a0a0a]">
+                    <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
+                      <TableHead className="text-gray-300">Version</TableHead>
+                      <TableHead className="text-gray-300">Created At</TableHead>
+                      <TableHead className="text-gray-300 text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {versions.length === 0 ? (
+                      <TableRow className="hover:bg-[#151515] border-gray-800">
+                        <TableCell colSpan={3} className="text-center py-4 text-gray-400">
+                          No versions found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      versions.map((version) => (
+                        <TableRow key={version.id} className="hover:bg-[#151515] border-gray-800">
+                          <TableCell className="font-medium text-white">{version.version}</TableCell>
+                          <TableCell className="text-gray-300">
+                            {new Date(version.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-blue-900 hover:text-white"
+                              onClick={() => handleSelectVersion(version.version)}
+                            >
+                              Select
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-[#101010] border-gray-800">
+          <CardHeader>
             <CardTitle className="text-xl font-bold text-white">Message Settings</CardTitle>
             <CardDescription className="text-gray-400">
               Configure application messages and notifications
@@ -434,6 +633,52 @@ const SettingsPage: React.FC = () => {
           </CardFooter>
         </Card>
       </div>
+      
+      <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
+        <DialogContent className="bg-[#101010] text-white border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Add New Version</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Enter a new version number for the application
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="newVersion" className="text-sm font-medium text-gray-300">Version Number</label>
+              <Input 
+                id="newVersion" 
+                placeholder="e.g. 1.2.0" 
+                className="bg-[#1a1a1a] border-gray-700 text-white"
+                value={newVersion}
+                onChange={(e) => setNewVersion(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter className="sm:justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsVersionDialogOpen(false)}
+              className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddVersion}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!newVersion.trim() || isAddingVersion}
+            >
+              {isAddingVersion ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Adding...
+                </>
+              ) : 'Add Version'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

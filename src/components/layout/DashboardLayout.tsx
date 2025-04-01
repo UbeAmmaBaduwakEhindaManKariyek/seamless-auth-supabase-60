@@ -20,7 +20,7 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#121212] text-white flex">
-      {/* Sidebar for larger screens */}
+      {/* Sidebar for larger screens - fixed to the left */}
       <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
       
       {/* Mobile navigation drawer */}

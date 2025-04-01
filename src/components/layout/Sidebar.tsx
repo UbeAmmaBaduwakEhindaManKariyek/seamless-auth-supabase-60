@@ -88,10 +88,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = fal
   // Otherwise return the desktop sidebar
   return (
     <aside className={cn(
-      "fixed left-0 top-0 h-screen bg-[#101010] text-white transition-all duration-300 z-50 hidden md:block",
+      "fixed left-0 top-0 h-screen bg-[#101010] text-white transition-all duration-300 z-30 hidden md:block",
       isOpen ? "w-64" : "w-0"
     )}>
-      {sidebarContent}
+      {isOpen && sidebarContent}
     </aside>
   );
 };
