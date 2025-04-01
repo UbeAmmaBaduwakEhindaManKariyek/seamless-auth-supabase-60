@@ -38,33 +38,30 @@ const ApiKeyManagement: React.FC = () => {
   const fetchApiKeys = async () => {
     setIsLoading(true);
     try {
-      // First, check if the table exists
-      const { error: tableCheckError } = await supabase
-        .from('app_authentication_keys')
-        .select('count', { count: 'exact', head: true })
-        .limit(1);
+      // Execute raw SQL to check if the table exists
+      const { error: tableCheckError } = await supabase.rpc('execute_sql', {
+        sql_query: `
+          SELECT COUNT(*) FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = 'app_authentication_keys'
+        `
+      });
 
+      // If there's an error with the SQL query, we'll handle it differently
       if (tableCheckError) {
-        // Table likely doesn't exist, create it
-        await supabase.rpc('execute_sql', {
-          sql_query: `
-            CREATE TABLE IF NOT EXISTS app_authentication_keys (
-              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-              name TEXT NOT NULL,
-              key TEXT NOT NULL UNIQUE,
-              description TEXT,
-              is_active BOOLEAN DEFAULT true,
-              created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-              created_by UUID
-            );
-          `
-        });
+        console.error('Error checking for table:', tableCheckError);
+        setApiKeys([]);
+        setIsLoading(false);
+        return;
       }
 
-      const { data, error } = await supabase
-        .from('app_authentication_keys')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // If we get here, the table exists, so we can query it
+      const { data, error } = await supabase.rpc('execute_sql', {
+        sql_query: `
+          SELECT id, name, key, description, is_active, created_at 
+          FROM app_authentication_keys 
+          ORDER BY created_at DESC
+        `
+      });
 
       if (error) {
         console.error('Error fetching API keys:', error);
@@ -73,9 +70,26 @@ const ApiKeyManagement: React.FC = () => {
           description: 'Failed to fetch API keys',
           variant: 'destructive',
         });
+        setApiKeys([]);
       } else {
-        setApiKeys(data || []);
+        // Parse the rows from the result
+        if (data && data.length > 0 && data[0].rows) {
+          const keys: ApiKey[] = data[0].rows.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            key: row.key,
+            description: row.description,
+            is_active: row.is_active,
+            created_at: row.created_at
+          }));
+          setApiKeys(keys);
+        } else {
+          setApiKeys([]);
+        }
       }
+    } catch (error) {
+      console.error('Unexpected error fetching API keys:', error);
+      setApiKeys([]);
     } finally {
       setIsLoading(false);
     }
@@ -132,10 +146,9 @@ const ApiKeyManagement: React.FC = () => {
   // Delete an API key
   const deleteApiKey = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('app_authentication_keys')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.rpc('execute_sql', {
+        sql_query: `DELETE FROM app_authentication_keys WHERE id = '${id}'`
+      });
 
       if (error) {
         throw error;
@@ -159,10 +172,13 @@ const ApiKeyManagement: React.FC = () => {
   // Toggle API key status (active/inactive)
   const toggleApiKeyStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('app_authentication_keys')
-        .update({ is_active: !currentStatus })
-        .eq('id', id);
+      const { error } = await supabase.rpc('execute_sql', {
+        sql_query: `
+          UPDATE app_authentication_keys 
+          SET is_active = ${!currentStatus} 
+          WHERE id = '${id}'
+        `
+      });
 
       if (error) {
         throw error;

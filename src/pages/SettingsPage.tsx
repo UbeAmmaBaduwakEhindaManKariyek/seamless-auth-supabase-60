@@ -5,6 +5,7 @@ import SupabaseSetup from '@/components/supabase/SupabaseSetup';
 import { useAuth } from '@/contexts/AuthContext';
 import ApiKeyManagement from '@/components/api/ApiKeyManagement';
 import AppVersionManager from '@/components/settings/AppVersionManager';
+import InstallTables from '@/components/supabase/InstallTables';
 
 const SettingsPage = () => {
   const { isConnected } = useAuth();
@@ -18,6 +19,7 @@ const SettingsPage = () => {
         
         {isConnected && (
           <>
+            <InstallTables />
             <AppVersionManager />
             <ApiKeyManagement />
           </>

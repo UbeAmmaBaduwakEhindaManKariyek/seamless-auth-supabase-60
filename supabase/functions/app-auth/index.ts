@@ -51,16 +51,15 @@ serve(async (req) => {
     const supabase = createClient(dbUrl, dbKey);
     
     // First, authenticate the app key
-    // 1. Check if the appKey is valid in a separate table
-    const { data: appData, error: appError } = await supabase
+    const { data: keyData, error: keyError } = await supabase
       .from("app_authentication_keys")
       .select("*")
       .eq("key", appKey)
       .eq("is_active", true)
       .single();
       
-    if (appError || !appData) {
-      console.error("Invalid app key:", appError);
+    if (keyError || !keyData) {
+      console.error("Invalid app key:", keyError);
       return new Response(
         JSON.stringify({ success: false, error: "Invalid application key" }),
         { 
@@ -70,8 +69,7 @@ serve(async (req) => {
       );
     }
     
-    // 2. Now check the user credentials
-    // Depending on your schema, we'll either check users or license_keys
+    // Now check the user credentials
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("*")
@@ -112,7 +110,7 @@ serve(async (req) => {
           data: {
             username,
             subscription: licenseData.subscription,
-            expire_date: licenseData.expire_date,
+            expire_date: licenseData.expiredate,
             hwid: licenseData.hwid,
             banned: licenseData.banned,
             save_hwid: licenseData.save_hwid,
