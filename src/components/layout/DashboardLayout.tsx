@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 
 const DashboardLayout: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleSidebar = () => {

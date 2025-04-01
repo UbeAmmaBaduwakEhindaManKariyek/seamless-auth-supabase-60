@@ -11,6 +11,7 @@ import { PlusCircle, Search, RefreshCw, Trash2, Edit, Download, Loader2, Ban, Ch
 import { format } from 'date-fns';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 interface User {
   id: number;
@@ -27,6 +28,14 @@ interface User {
   banned?: boolean;
 }
 
+interface SubscriptionType {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  is_active?: boolean;
+}
+
 const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +43,8 @@ const UsersPage: React.FC = () => {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [subscriptionTypes, setSubscriptionTypes] = useState<SubscriptionType[]>([]);
   const { toast } = useToast();
   const { isConnected } = useAuth();
   
@@ -129,7 +140,44 @@ const UsersPage: React.FC = () => {
     };
 
     fetchUsers();
+    fetchSubscriptionTypes();
   }, [isConnected, toast]);
+
+  const fetchSubscriptionTypes = async () => {
+    if (!isConnected) {
+      setSubscriptionTypes([
+        { id: '1', name: 'standard', description: 'Standard plan', price: 9.99 },
+        { id: '2', name: 'premium', description: 'Premium plan', price: 19.99 },
+        { id: '3', name: 'enterprise', description: 'Enterprise plan', price: 49.99 }
+      ]);
+      return;
+    }
+
+    try {
+      const client = getActiveClient();
+      const { data, error } = await client
+        .from('subscription_types')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (error) {
+        console.error("Error fetching subscription types:", error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        setSubscriptionTypes(data);
+      } else {
+        setSubscriptionTypes([
+          { id: '1', name: 'standard', description: 'Standard plan', price: 9.99 },
+          { id: '2', name: 'premium', description: 'Premium plan', price: 19.99 },
+          { id: '3', name: 'enterprise', description: 'Enterprise plan', price: 49.99 }
+        ]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch subscription types:", error);
+    }
+  };
   
   const handleAddUser = async () => {
     if (!newUser.username || !newUser.subscription) {
@@ -353,6 +401,13 @@ const UsersPage: React.FC = () => {
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
+  const indexOfLastUser = currentPage * entriesPerPage;
+  const indexOfFirstUser = indexOfLastUser - entriesPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / entriesPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  
   return (
     <div className="space-y-6">
       <div>
@@ -381,7 +436,10 @@ const UsersPage: React.FC = () => {
         <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
           <div className="flex items-center gap-2">
             <span className="text-white text-sm">Show:</span>
-            <Select value={entriesPerPage.toString()} onValueChange={(value) => setEntriesPerPage(parseInt(value))}>
+            <Select value={entriesPerPage.toString()} onValueChange={(value) => {
+              setEntriesPerPage(parseInt(value));
+              setCurrentPage(1);
+            }}>
               <SelectTrigger className="w-20 bg-[#1a1a1a] border-gray-700 text-white">
                 <SelectValue placeholder="10" />
               </SelectTrigger>
@@ -400,7 +458,10 @@ const UsersPage: React.FC = () => {
               placeholder="Search users..."
               className="pl-8 bg-[#1a1a1a] border-gray-700 text-white"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
         </div>
@@ -430,14 +491,14 @@ const UsersPage: React.FC = () => {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filteredUsers.length === 0 ? (
+            ) : currentUsers.length === 0 ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
                 <TableCell colSpan={8} className="text-center py-10 text-gray-400">
                   {isConnected ? "No users found" : "Connect to Supabase to view users"}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => (
+              currentUsers.map((user) => (
                 <TableRow key={user.id} className="hover:bg-[#151515] border-gray-800">
                   <TableCell className="text-white">{user.id}</TableCell>
                   <TableCell className="font-medium text-white">{user.username}</TableCell>
@@ -482,6 +543,51 @@ const UsersPage: React.FC = () => {
         </Table>
       </div>
       
+      {filteredUsers.length > 0 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={() => paginate(Math.max(1, currentPage - 1))} 
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} 
+              />
+            </PaginationItem>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return pageNum <= totalPages ? (
+                <PaginationItem key={pageNum}>
+                  <PaginationLink 
+                    isActive={currentPage === pageNum} 
+                    onClick={() => paginate(pageNum)}
+                    className="cursor-pointer bg-[#1a1a1a] hover:bg-gray-800 border-gray-700"
+                  >
+                    {pageNum}
+                  </PaginationLink>
+                </PaginationItem>
+              ) : null;
+            })}
+            
+            <PaginationItem>
+              <PaginationNext 
+                onClick={() => paginate(Math.min(totalPages, currentPage + 1))} 
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} 
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+      
       <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
         <DialogContent className="bg-[#101010] text-white border-gray-800 max-w-2xl">
           <DialogHeader>
@@ -524,10 +630,12 @@ const UsersPage: React.FC = () => {
                 <SelectTrigger className="w-full bg-[#1a1a1a] border-gray-700 text-white">
                   <SelectValue placeholder="Select a subscription" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white">
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white z-50">
+                  {subscriptionTypes.map(subType => (
+                    <SelectItem key={subType.id} value={subType.name}>
+                      {subType.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -687,10 +795,12 @@ const UsersPage: React.FC = () => {
                   <SelectTrigger className="w-full bg-[#1a1a1a] border-gray-700 text-white">
                     <SelectValue placeholder="Select a subscription" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white">
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white z-50">
+                    {subscriptionTypes.map(subType => (
+                      <SelectItem key={subType.id} value={subType.name}>
+                        {subType.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -1,8 +1,7 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Bell, Link2, Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 
 interface NavbarProps {
   toggleSidebar: () => void;
@@ -29,7 +28,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, toggleMobileMenu, isMobi
           className="p-1 rounded-md hover:bg-gray-800 transition-colors md:hidden"
           aria-label="Open Mobile Menu"
         >
-          <Menu className="h-6 w-6" />
+          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
         
         <div className="text-xl font-bold">Regz Login System</div>

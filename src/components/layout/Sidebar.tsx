@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -39,7 +40,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = fal
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> }
   ];
 
-  // Regular sidebar content
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
@@ -87,12 +87,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = fal
 
   // Otherwise return the desktop sidebar
   return (
-    <div className={cn(
-      "fixed top-0 left-0 h-screen bg-[#101010] text-white transition-all duration-300 z-50 hidden md:block",
+    <aside className={cn(
+      "fixed left-0 top-0 h-screen bg-[#101010] text-white transition-all duration-300 z-50 hidden md:block",
       isOpen ? "w-64" : "w-0"
     )}>
       {sidebarContent}
-    </div>
+    </aside>
   );
 };
 
