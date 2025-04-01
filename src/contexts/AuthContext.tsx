@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase, createCustomClient, getActiveClient } from '@/integrations/supabase/client';
+import { supabase, createCustomClient, getActiveClient, executeRawSql } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: AuthUser | null;
