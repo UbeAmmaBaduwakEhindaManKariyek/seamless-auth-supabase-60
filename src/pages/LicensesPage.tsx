@@ -10,16 +10,7 @@ import { PlusCircle, Download, Search, Loader2, Trash2, Copy } from 'lucide-reac
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-
-interface License {
-  id: string;
-  key: string;
-  user_id: number | null;
-  created_at: string;
-  expired_at: string | null;
-  is_active: boolean;
-  username?: string; // From users table join
-}
+import { License } from '@/types/auth';
 
 const LicensesPage: React.FC = () => {
   const [licenses, setLicenses] = useState<License[]>([]);
@@ -48,11 +39,10 @@ const LicensesPage: React.FC = () => {
       try {
         const client = getActiveClient();
         
-        // Try to get licenses with joined user data
+        // Try to get licenses
         const { data, error } = await client
           .from('license_keys')
-          .select(`*, users(username)`)
-          .order('created_at', { ascending: false });
+          .select('*');
         
         if (error) {
           console.error("Error fetching licenses:", error);
@@ -65,39 +55,56 @@ const LicensesPage: React.FC = () => {
         }
         
         if (data && data.length > 0) {
-          // Format the data to include username from the joined users table
-          const formattedData = data.map(item => ({
-            ...item,
-            username: item.users?.username
+          // Convert the structure to match our License interface
+          const formattedData: License[] = data.map(item => ({
+            id: item.id,
+            key: item.key,
+            license_key: item.license_key,
+            expiredate: item.expiredate,
+            user_id: null, // Since we don't have this in the table
+            created_at: new Date().toISOString(), // Use current date as fallback
+            is_active: !item.banned, // Invert banned status for is_active
+            admin_approval: item.admin_approval,
+            banned: item.banned,
+            hwid: item.hwid,
+            hwid_reset_count: item.hwid_reset_count,
+            max_devices: item.max_devices,
+            mobile_number: item.mobile_number,
+            save_hwid: item.save_hwid,
+            subscription: item.subscription,
+            username: undefined // Will be filled in later if we get user data
           }));
           setLicenses(formattedData);
         } else {
           // Mock data if no records found
           setLicenses([
             {
-              id: '1',
-              key: 'LICENSE-XXXX-YYYY-ZZZZ',
+              id: 1,
+              key: 'mock-key-1',
+              license_key: 'LICENSE-XXXX-YYYY-ZZZZ',
               user_id: 1,
               created_at: new Date().toISOString(),
-              expired_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              expiredate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
               is_active: true,
               username: 'johndoe'
             },
             {
-              id: '2',
-              key: 'LICENSE-AAAA-BBBB-CCCC',
+              id: 2,
+              key: 'mock-key-2',
+              license_key: 'LICENSE-AAAA-BBBB-CCCC',
               user_id: 2,
               created_at: new Date().toISOString(),
-              expired_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
+              expiredate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
               is_active: true,
               username: 'janesmith'
             },
             {
-              id: '3',
-              key: 'LICENSE-DDDD-EEEE-FFFF',
+              id: 3,
+              key: 'mock-key-3',
+              license_key: 'LICENSE-DDDD-EEEE-FFFF',
               user_id: null,
               created_at: new Date().toISOString(),
-              expired_at: null,
+              expiredate: null,
               is_active: false,
               username: undefined
             }
@@ -119,7 +126,7 @@ const LicensesPage: React.FC = () => {
   }, [isConnected, toast]);
   
   const filteredLicenses = licenses.filter(license => 
-    license.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    license.license_key?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (license.username && license.username.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
@@ -143,11 +150,11 @@ const LicensesPage: React.FC = () => {
       ['ID', 'License Key', 'User ID', 'Username', 'Created At', 'Expires At', 'Status'].join(','),
       ...filteredLicenses.map(license => [
         license.id,
-        license.key,
+        license.license_key,
         license.user_id || '',
         license.username || '',
         license.created_at,
-        license.expired_at || '',
+        license.expiredate || '',
         license.is_active ? 'Active' : 'Inactive'
       ].join(','))
     ].join('\n');
@@ -203,14 +210,16 @@ const LicensesPage: React.FC = () => {
     try {
       if (isConnected) {
         const client = getActiveClient();
-        const expiredAt = newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null;
+        const expiredate = newLicenseExpiry ? new Date(newLicenseExpiry).toISOString().split('T')[0] : null;
         
         const { data, error } = await client
           .from('license_keys')
           .insert({
-            key: newLicenseKey,
-            expired_at: expiredAt,
-            is_active: true
+            license_key: newLicenseKey,
+            expiredate: expiredate,
+            banned: false,
+            admin_approval: true,
+            save_hwid: true
           })
           .select();
         
@@ -225,16 +234,33 @@ const LicensesPage: React.FC = () => {
         }
         
         if (data && data.length > 0) {
-          setLicenses(prev => [data[0], ...prev]);
+          const newLicense: License = {
+            id: data[0].id,
+            key: data[0].key,
+            license_key: data[0].license_key,
+            expiredate: data[0].expiredate,
+            is_active: !data[0].banned,
+            admin_approval: data[0].admin_approval,
+            banned: data[0].banned,
+            hwid: data[0].hwid,
+            hwid_reset_count: data[0].hwid_reset_count,
+            max_devices: data[0].max_devices,
+            mobile_number: data[0].mobile_number,
+            save_hwid: data[0].save_hwid,
+            subscription: data[0].subscription,
+            created_at: new Date().toISOString()
+          };
+          
+          setLicenses(prev => [newLicense, ...prev]);
         }
       } else {
         // Mock creation
         const newLicense: License = {
-          id: Math.random().toString(36).substring(2, 15),
-          key: newLicenseKey,
+          id: Math.floor(Math.random() * 1000) + 100,
+          license_key: newLicenseKey,
           user_id: null,
           created_at: new Date().toISOString(),
-          expired_at: newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null,
+          expiredate: newLicenseExpiry ? new Date(newLicenseExpiry).toISOString() : null,
           is_active: true
         };
         
@@ -369,12 +395,12 @@ const LicensesPage: React.FC = () => {
                 <TableRow key={license.id} className="hover:bg-[#151515] border-gray-800">
                   <TableCell className="font-medium text-white">
                     <div className="flex items-center gap-2">
-                      <span>{license.key}</span>
+                      <span>{license.license_key}</span>
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         className="h-6 w-6 text-gray-400 hover:text-white"
-                        onClick={() => handleCopyKey(license.key)}
+                        onClick={() => handleCopyKey(license.license_key)}
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </Button>
@@ -389,11 +415,11 @@ const LicensesPage: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-white">{license.username || 'Unassigned'}</TableCell>
                   <TableCell className="text-white">
-                    {format(new Date(license.created_at), 'yyyy-MM-dd')}
+                    {license.created_at ? format(new Date(license.created_at), 'yyyy-MM-dd') : 'N/A'}
                   </TableCell>
                   <TableCell className="text-white">
-                    {license.expired_at 
-                      ? format(new Date(license.expired_at), 'yyyy-MM-dd')
+                    {license.expiredate 
+                      ? format(new Date(license.expiredate), 'yyyy-MM-dd')
                       : 'Never'
                     }
                   </TableCell>

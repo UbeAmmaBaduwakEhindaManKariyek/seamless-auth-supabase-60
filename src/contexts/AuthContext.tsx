@@ -256,9 +256,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("web_login_regz table might not exist, attempting to create it");
           
           try {
-            // Create the web_login_regz table if it doesn't exist
-            const { error: createTableError } = await customClient.rpc('pgclient', { 
-              query: `
+            // Create the web_login_regz table if it doesn't exist using raw SQL query
+            const { error: createTableError } = await customClient.rpc('execute_sql', { 
+              sql_query: `
                 CREATE TABLE IF NOT EXISTS web_login_regz (
                   id SERIAL PRIMARY KEY,
                   username TEXT NOT NULL,
@@ -446,9 +446,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.log("web_login_regz table might not exist, attempting to create it");
                 
                 try {
-                  // Create the web_login_regz table if it doesn't exist
-                  const { error: createTableError } = await customClient.rpc('pgclient', { 
-                    query: `
+                  // Create the web_login_regz table if it doesn't exist using raw SQL query
+                  const { error: createTableError } = await customClient.rpc('execute_sql', { 
+                    sql_query: `
                       CREATE TABLE IF NOT EXISTS web_login_regz (
                         id SERIAL PRIMARY KEY,
                         username TEXT NOT NULL,

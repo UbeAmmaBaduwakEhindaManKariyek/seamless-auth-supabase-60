@@ -28,6 +28,40 @@ const Dashboard: React.FC = () => {
         
         const isConnected = await checkConnection();
         if (isConnected) {
+          // Try to create the execute_sql function if it doesn't exist
+          try {
+            const client = createCustomClient(user.supabaseUrl, user.supabaseKey);
+            if (client) {
+              await client.rpc('execute_sql', {
+                sql_query: `
+                  CREATE OR REPLACE FUNCTION execute_sql(sql_query text)
+                  RETURNS JSONB
+                  LANGUAGE plpgsql
+                  SECURITY DEFINER
+                  AS $$
+                  DECLARE
+                    result JSONB;
+                  BEGIN
+                    EXECUTE sql_query;
+                    result = '{"success": true}'::JSONB;
+                    RETURN result;
+                  EXCEPTION WHEN OTHERS THEN
+                    result = jsonb_build_object(
+                      'success', false,
+                      'error', SQLERRM,
+                      'detail', SQLSTATE
+                    );
+                    RETURN result;
+                  END;
+                  $$;
+                `
+              });
+            }
+          } catch (e) {
+            console.log("Error creating execute_sql function, might already exist:", e);
+            // Ignore errors, function might already exist
+          }
+          
           setConnectionStatus('connected');
         } else {
           setConnectionStatus('failed');

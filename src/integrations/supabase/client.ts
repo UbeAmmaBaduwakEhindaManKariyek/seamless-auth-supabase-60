@@ -36,8 +36,20 @@ export function createCustomClient(url: string, key: string) {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+      },
+      // Add custom function to execute SQL queries
+      global: {
+        // This is needed for backwards compatibility
+        headers: {
+          'x-my-custom-header': 'custom-value'
+        }
       }
     });
+    
+    // Add custom RPC function to execute SQL queries
+    customClientInstance.rpc.execute_sql = function(sql_query: string) {
+      return customClientInstance!.rpc('execute_sql', { sql_query });
+    };
     
     return customClientInstance;
   } catch (error) {
@@ -68,4 +80,11 @@ export function resetCustomClient() {
  */
 export function hasCustomClient(): boolean {
   return customClientInstance !== null;
+}
+
+// Add execute_sql RPC function type
+declare module '@supabase/supabase-js' {
+  interface SupabaseRPC {
+    execute_sql(sql_query: string): Promise<any>;
+  }
 }
