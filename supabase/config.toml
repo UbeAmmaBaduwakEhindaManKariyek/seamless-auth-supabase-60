@@ -1,1 +1,8 @@
+
 project_id = "tevmesjpsrsiuwswgzfb"
+
+[functions.app-auth]
+verify_jwt = false
+
+[functions.create-app-key]
+verify_jwt = true
