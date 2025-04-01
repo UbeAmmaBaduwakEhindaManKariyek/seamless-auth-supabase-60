@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { PlusCircle, Search, RefreshCw, Trash2, Edit, Download, Loader2 } from 'lucide-react';
+import { PlusCircle, Search, RefreshCw, Trash2, Edit, Download, Loader2, Ban, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,19 +23,20 @@ interface User {
   hwid_reset_count: number;
   max_devices: number;
   key: string;
-  password: string; // Added password field to match the database schema
+  password: string;
+  banned?: boolean;
 }
 
 const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const { toast } = useToast();
   const { isConnected } = useAuth();
   
-  // New user form state
   const [newUser, setNewUser] = useState<Partial<User>>({
     username: '',
     subscription: '',
@@ -47,13 +47,14 @@ const UsersPage: React.FC = () => {
     hwid_reset_count: 5,
     max_devices: 1,
     key: '',
-    password: '' // Added password field to the initial form state
+    password: '',
+    banned: false
   });
 
-  // Added password state
+  const [editUser, setEditUser] = useState<User | null>(null);
+  
   const [password, setPassword] = useState('');
 
-  // Fetch users from Supabase
   useEffect(() => {
     const fetchUsers = async () => {
       if (!isConnected) {
@@ -65,7 +66,6 @@ const UsersPage: React.FC = () => {
       setIsLoading(true);
       try {
         const client = getActiveClient();
-        // Fix: Add explicit typing for the select method
         const { data, error } = await client
           .from('users')
           .select('*');
@@ -85,7 +85,6 @@ const UsersPage: React.FC = () => {
           console.log("Fetched users:", data);
         } else {
           console.log("No users found or empty response");
-          // Use mock data if no real data is available
           setUsers([
             {
               id: 1,
@@ -98,7 +97,8 @@ const UsersPage: React.FC = () => {
               hwid_reset_count: 5,
               max_devices: 2,
               key: 'ABC123',
-              password: 'password123' // Added mock password
+              password: 'password123',
+              banned: false
             },
             {
               id: 2,
@@ -111,7 +111,8 @@ const UsersPage: React.FC = () => {
               hwid_reset_count: 3,
               max_devices: 1,
               key: 'XYZ456',
-              password: 'password456' // Added mock password
+              password: 'password456',
+              banned: true
             }
           ]);
         }
@@ -140,7 +141,6 @@ const UsersPage: React.FC = () => {
       return;
     }
     
-    // Ensure password is provided
     if (!password) {
       toast({
         title: "Missing Password",
@@ -153,7 +153,6 @@ const UsersPage: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Create a complete user object with all required fields including password
       const userToInsert = {
         username: newUser.username || '',
         subscription: newUser.subscription || 'standard',
@@ -164,12 +163,12 @@ const UsersPage: React.FC = () => {
         hwid_reset_count: newUser.hwid_reset_count || 5,
         max_devices: newUser.max_devices || 1,
         key: newUser.key || `KEY${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        password: password // Use the password from state
+        password: password,
+        banned: newUser.banned || false
       };
       
       if (isConnected) {
         const client = getActiveClient();
-        // Fix: Add explicit typing for the insert method
         const { data, error } = await client
           .from('users')
           .insert(userToInsert)
@@ -189,11 +188,10 @@ const UsersPage: React.FC = () => {
           setUsers(prev => [...prev, data[0] as User]);
         }
       } else {
-        // Fallback to local state if no connection
         const newUserWithId = {
           ...userToInsert,
           id: users.length ? Math.max(...users.map(u => u.id)) + 1 : 1
-        };
+        } as User;
         setUsers(prev => [...prev, newUserWithId]);
       }
       
@@ -203,7 +201,6 @@ const UsersPage: React.FC = () => {
         description: `User ${userToInsert.username} has been created successfully`
       });
       
-      // Reset form
       setNewUser({
         username: '',
         subscription: '',
@@ -214,9 +211,10 @@ const UsersPage: React.FC = () => {
         hwid_reset_count: 5,
         max_devices: 1,
         key: '',
-        password: '' // Reset password field
+        password: '',
+        banned: false
       });
-      setPassword(''); // Reset password input
+      setPassword('');
     } catch (error) {
       console.error("Error adding user:", error);
       toast({
@@ -226,6 +224,121 @@ const UsersPage: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOpenEditUser = (user: User) => {
+    setEditUser({ ...user });
+    setIsEditUserOpen(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editUser) return;
+    
+    try {
+      setIsLoading(true);
+      
+      if (isConnected) {
+        const client = getActiveClient();
+        const { error } = await client
+          .from('users')
+          .update({
+            username: editUser.username,
+            subscription: editUser.subscription,
+            expiredate: editUser.expiredate,
+            mobile_number: editUser.mobile_number,
+            admin_approval: editUser.admin_approval,
+            save_hwid: editUser.save_hwid,
+            hwid_reset_count: editUser.hwid_reset_count,
+            max_devices: editUser.max_devices,
+            password: editUser.password,
+            banned: editUser.banned
+          })
+          .eq('id', editUser.id);
+        
+        if (error) {
+          console.error("Error updating user:", error);
+          toast({
+            title: "Failed to update user",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        setUsers(prev => 
+          prev.map(user => 
+            user.id === editUser.id ? editUser : user
+          )
+        );
+      } else {
+        setUsers(prev => 
+          prev.map(user => 
+            user.id === editUser.id ? editUser : user
+          )
+        );
+      }
+      
+      setIsEditUserOpen(false);
+      toast({
+        title: "User Updated",
+        description: `User ${editUser.username} has been updated successfully`
+      });
+      
+    } catch (error) {
+      console.error("Error updating user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update user",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleBan = async (user: User) => {
+    try {
+      const updatedBanStatus = !user.banned;
+      
+      if (isConnected) {
+        const client = getActiveClient();
+        const { error } = await client
+          .from('users')
+          .update({
+            banned: updatedBanStatus
+          })
+          .eq('id', user.id);
+        
+        if (error) {
+          console.error("Error updating ban status:", error);
+          toast({
+            title: "Failed to update ban status",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+      
+      setUsers(prev => 
+        prev.map(u => 
+          u.id === user.id ? { ...u, banned: updatedBanStatus } : u
+        )
+      );
+      
+      toast({
+        title: updatedBanStatus ? "User Banned" : "User Unbanned",
+        description: `${user.username} has been ${updatedBanStatus ? 'banned' : 'unbanned'}`
+      });
+      
+    } catch (error) {
+      console.error("Error toggling ban status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update ban status",
+        variant: "destructive"
+      });
     }
   };
   
@@ -293,7 +406,7 @@ const UsersPage: React.FC = () => {
         </div>
       </div>
       
-      <div className="rounded-md border border-gray-800 overflow-hidden">
+      <div className="rounded-md border border-gray-800 overflow-x-auto">
         <Table>
           <TableHeader className="bg-[#0a0a0a]">
             <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
@@ -303,13 +416,14 @@ const UsersPage: React.FC = () => {
               <TableHead className="text-gray-300">Expires</TableHead>
               <TableHead className="text-gray-300">Key</TableHead>
               <TableHead className="text-gray-300">Status</TableHead>
+              <TableHead className="text-gray-300">Ban Status</TableHead>
               <TableHead className="text-gray-300 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={7} className="text-center py-10 text-gray-400">
+                <TableCell colSpan={8} className="text-center py-10 text-gray-400">
                   <div className="flex items-center justify-center">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
                     <span>Loading users...</span>
@@ -318,7 +432,7 @@ const UsersPage: React.FC = () => {
               </TableRow>
             ) : filteredUsers.length === 0 ? (
               <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={7} className="text-center py-10 text-gray-400">
+                <TableCell colSpan={8} className="text-center py-10 text-gray-400">
                   {isConnected ? "No users found" : "Connect to Supabase to view users"}
                 </TableCell>
               </TableRow>
@@ -335,12 +449,27 @@ const UsersPage: React.FC = () => {
                       {user.admin_approval ? 'Approved' : 'Pending'}
                     </span>
                   </TableCell>
+                  <TableCell className="text-white">
+                    <span className={`px-2 py-1 rounded-full text-xs ${!user.banned ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                      {!user.banned ? 'Active' : 'Banned'}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                      onClick={() => handleOpenEditUser(user)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-900/20">
-                      <Trash2 className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={`h-8 w-8 ${user.banned ? 'text-green-400 hover:text-green-300 hover:bg-green-900/20' : 'text-red-400 hover:text-red-300 hover:bg-red-900/20'}`}
+                      onClick={() => handleToggleBan(user)}
+                    >
+                      {user.banned ? <Check className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20">
                       <RefreshCw className="h-4 w-4" />
@@ -353,7 +482,6 @@ const UsersPage: React.FC = () => {
         </Table>
       </div>
       
-      {/* Add User Dialog */}
       <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
         <DialogContent className="bg-[#101010] text-white border-gray-800 max-w-2xl">
           <DialogHeader>
@@ -511,6 +639,158 @@ const UsersPage: React.FC = () => {
                   Creating...
                 </>
               ) : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="bg-[#101010] text-white border-gray-800 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Edit User</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Update user information.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editUser && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <label htmlFor="edit-username" className="text-sm font-medium text-gray-300">Username</label>
+                <Input 
+                  id="edit-username" 
+                  placeholder="Enter username" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white"
+                  value={editUser.username}
+                  onChange={(e) => setEditUser({...editUser, username: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-password" className="text-sm font-medium text-gray-300">Password</label>
+                <Input 
+                  id="edit-password" 
+                  type="password" 
+                  placeholder="Enter new password (leave blank to keep current)" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white" 
+                  value={editUser.password || ''}
+                  onChange={(e) => setEditUser({...editUser, password: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-subscription" className="text-sm font-medium text-gray-300">Subscription</label>
+                <Select 
+                  value={editUser.subscription} 
+                  onValueChange={(value) => setEditUser({...editUser, subscription: value})}
+                >
+                  <SelectTrigger className="w-full bg-[#1a1a1a] border-gray-700 text-white">
+                    <SelectValue placeholder="Select a subscription" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1a1a] border-gray-700 text-white">
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-expiryDate" className="text-sm font-medium text-gray-300">Expiry Date</label>
+                <Input 
+                  id="edit-expiryDate" 
+                  type="date" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white"
+                  value={editUser.expiredate}
+                  onChange={(e) => setEditUser({...editUser, expiredate: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-mobileNumber" className="text-sm font-medium text-gray-300">Mobile Number</label>
+                <Input 
+                  id="edit-mobileNumber" 
+                  placeholder="Enter mobile number" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white"
+                  value={editUser.mobile_number}
+                  onChange={(e) => setEditUser({...editUser, mobile_number: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-hwidResetCount" className="text-sm font-medium text-gray-300">HWID Reset Count</label>
+                <Input 
+                  id="edit-hwidResetCount" 
+                  type="number" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white"
+                  value={editUser.hwid_reset_count}
+                  onChange={(e) => setEditUser({...editUser, hwid_reset_count: parseInt(e.target.value)})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="edit-maxDevices" className="text-sm font-medium text-gray-300">Max Devices</label>
+                <Input 
+                  id="edit-maxDevices" 
+                  type="number" 
+                  className="bg-[#1a1a1a] border-gray-700 text-white"
+                  value={editUser.max_devices}
+                  onChange={(e) => setEditUser({...editUser, max_devices: parseInt(e.target.value)})}
+                />
+              </div>
+              
+              <div className="col-span-1 md:col-span-2">
+                <div className="flex flex-wrap items-center gap-4 mt-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="edit-admin-approval" 
+                      checked={editUser.admin_approval}
+                      onCheckedChange={(checked) => setEditUser({...editUser, admin_approval: checked})}
+                    />
+                    <Label htmlFor="edit-admin-approval" className="text-gray-300">Admin Approval</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="edit-save-hwid" 
+                      checked={editUser.save_hwid}
+                      onCheckedChange={(checked) => setEditUser({...editUser, save_hwid: checked})}
+                    />
+                    <Label htmlFor="edit-save-hwid" className="text-gray-300">Save HWID</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="edit-banned" 
+                      checked={editUser.banned}
+                      onCheckedChange={(checked) => setEditUser({...editUser, banned: checked})}
+                    />
+                    <Label htmlFor="edit-banned" className="text-gray-300">Banned</Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="sm:justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsEditUserOpen(false)}
+              className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateUser}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : 'Update User'}
             </Button>
           </DialogFooter>
         </DialogContent>
