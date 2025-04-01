@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Menu,
@@ -16,17 +15,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
 
 interface SidebarProps {
   isOpen: boolean;
   toggleSidebar: () => void;
+  isMobile?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = false }) => {
   const location = useLocation();
   const { logout } = useAuth();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home className="w-5 h-5" /> },
@@ -41,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> }
   ];
 
-  // Regular sidebar for desktop
+  // Regular sidebar content
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
@@ -60,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
                   "flex items-center p-3 text-gray-300 rounded-md hover:bg-blue-600 transition-colors",
                   location.pathname === item.path && "bg-blue-700"
                 )}
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={isMobile ? toggleSidebar : undefined}
               >
                 <span className="mr-3">{item.icon}</span>
                 <span>{item.name}</span>
@@ -82,25 +80,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
     </div>
   );
 
-  return (
-    <>
-      {/* Desktop Sidebar */}
-      <div className={cn(
-        "fixed top-0 left-0 h-screen bg-[#101010] text-white transition-all duration-300 z-50 hidden md:block",
-        isOpen ? "w-64" : "w-0"
-      )}>
-        {sidebarContent}
-      </div>
+  // If this is for mobile, return just the content
+  if (isMobile) {
+    return sidebarContent;
+  }
 
-      {/* Mobile Drawer */}
-      <Drawer open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <DrawerContent className="bg-[#101010] text-white border-t border-gray-800 min-h-[80vh]">
-          <div className="h-[80vh] overflow-auto">
-            {sidebarContent}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    </>
+  // Otherwise return the desktop sidebar
+  return (
+    <div className={cn(
+      "fixed top-0 left-0 h-screen bg-[#101010] text-white transition-all duration-300 z-50 hidden md:block",
+      isOpen ? "w-64" : "w-0"
+    )}>
+      {sidebarContent}
+    </div>
   );
 };
 

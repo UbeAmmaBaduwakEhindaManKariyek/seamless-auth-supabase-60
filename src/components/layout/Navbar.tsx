@@ -2,15 +2,16 @@
 import React, { useState } from 'react';
 import { Bell, Link2, Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Drawer, DrawerTrigger } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 
 interface NavbarProps {
   toggleSidebar: () => void;
+  toggleMobileMenu: () => void;
+  isMobileMenuOpen: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
+const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, toggleMobileMenu, isMobileMenuOpen }) => {
   const { user } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <nav className="bg-[#101010] text-white py-4 px-6 flex justify-between items-center fixed w-full top-0 z-40">
@@ -23,14 +24,13 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
           <Menu className="h-6 w-6" />
         </button>
         
-        <DrawerTrigger asChild className="md:hidden">
-          <button 
-            className="p-1 rounded-md hover:bg-gray-800 transition-colors"
-            aria-label="Open Mobile Menu"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-        </DrawerTrigger>
+        <button 
+          onClick={toggleMobileMenu}
+          className="p-1 rounded-md hover:bg-gray-800 transition-colors md:hidden"
+          aria-label="Open Mobile Menu"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
         
         <div className="text-xl font-bold">Regz Login System</div>
       </div>
