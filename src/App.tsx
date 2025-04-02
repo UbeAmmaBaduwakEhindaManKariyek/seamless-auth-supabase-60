@@ -24,6 +24,7 @@ import LoginDetailsPage from "./pages/LoginDetailsPage";
 import AppOpenPage from "./pages/AppOpenPage";
 import EmuUsersPage from "./pages/EmuUsersPage";
 import ApiDocsPage from "./pages/ApiDocsPage";
+import ApplicationsPage from "./pages/ApplicationsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="app-open" element={<AppOpenPage />} />
             <Route path="emu-users" element={<EmuUsersPage />} />
             <Route path="api-docs" element={<ApiDocsPage />} />
+            <Route path="applications" element={<ApplicationsPage />} />
           </Route>
           
           <Route path="*" element={<NotFound />} />

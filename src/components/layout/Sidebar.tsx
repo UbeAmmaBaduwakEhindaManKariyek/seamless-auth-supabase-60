@@ -13,7 +13,8 @@ import {
   Home,
   LogOut,
   FileWarning,
-  FileCode
+  FileCode,
+  Grid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = fal
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home className="w-5 h-5" /> },
+    { name: 'Applications', path: '/applications', icon: <Grid className="w-5 h-5" /> },
     { name: 'Users', path: '/users', icon: <Users className="w-5 h-5" /> },
     { name: 'Licenses', path: '/licenses', icon: <Key className="w-5 h-5" /> },
     { name: 'Subscriptions', path: '/subscriptions', icon: <Tag className="w-5 h-5" /> },
