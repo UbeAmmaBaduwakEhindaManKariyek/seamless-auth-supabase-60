@@ -88,7 +88,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px] bg-gray-900 text-white">
+      <DialogContent className="sm:max-w-[425px] bg-gray-900 text-white border-gray-800">
         <DialogHeader>
           <DialogTitle className="text-xl text-white">Create New Application</DialogTitle>
           <DialogDescription className="text-gray-400">
@@ -125,10 +125,19 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
           </div>
           
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isCreating}>
+            <Button 
+              type="submit" 
+              disabled={isCreating}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               {isCreating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

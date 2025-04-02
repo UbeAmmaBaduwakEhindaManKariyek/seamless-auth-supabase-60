@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -213,7 +214,7 @@ const ApplicationsPage: React.FC = () => {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Your Applications</h2>
             <Button 
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               onClick={() => setIsCreateModalOpen(true)}
             >
               <Plus className="h-4 w-4" />
@@ -230,15 +231,15 @@ const ApplicationsPage: React.FC = () => {
             </Alert>
           ) : (
             <div className="grid grid-cols-1 gap-6">
-              <Card>
-                <CardHeader className="bg-gray-800 text-white">
+              <Card className="border-gray-800">
+                <CardHeader className="bg-gray-900 text-white rounded-t-lg">
                   <div className="flex justify-between items-center">
                     <CardTitle>Application Management</CardTitle>
                     {selectedApp && (
                       <div className="flex items-center gap-2">
                         <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                           selectedApp.is_active 
-                            ? 'bg-green-700 text-green-100' 
+                            ? 'bg-green-600 text-green-100' 
                             : 'bg-gray-700 text-gray-200'
                         }`}>
                           {selectedApp.is_active ? 'Active' : 'Paused'}
@@ -250,14 +251,15 @@ const ApplicationsPage: React.FC = () => {
                     Configure and manage your application credentials
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 bg-gray-900 text-white">
                   <Tabs defaultValue={selectedApp?.id.toString() || "0"}>
-                    <TabsList className="grid grid-cols-3 mb-6">
+                    <TabsList className="grid grid-cols-3 mb-6 bg-gray-800">
                       {applications.slice(0, 3).map(app => (
                         <TabsTrigger 
                           key={app.id} 
                           value={app.id.toString()}
                           onClick={() => setSelectedApp(app)}
+                          className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
                         >
                           {app.name}
                         </TabsTrigger>
@@ -271,12 +273,13 @@ const ApplicationsPage: React.FC = () => {
                     ))}
                   </Tabs>
                 </CardContent>
-                <CardFooter className="border-t border-gray-700 flex flex-wrap gap-2 justify-between">
+                <CardFooter className="border-t border-gray-800 flex flex-wrap gap-2 justify-between bg-gray-900 text-white rounded-b-lg">
                   <div className="flex flex-wrap gap-2">
                     <Button 
                       variant="outline" 
                       onClick={() => selectedApp && refreshSecret(selectedApp.id)}
                       disabled={refreshing || !selectedApp}
+                      className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700"
                     >
                       {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                       Refresh Secret
@@ -286,6 +289,7 @@ const ApplicationsPage: React.FC = () => {
                       <Button 
                         variant="outline"
                         onClick={() => selectedApp && toggleAppStatus(selectedApp.id, selectedApp.is_active)}
+                        className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700"
                       >
                         {selectedApp.is_active ? 
                           <><Pause className="h-4 w-4 mr-2" /> Pause Application</> : 
@@ -299,6 +303,7 @@ const ApplicationsPage: React.FC = () => {
                     <Button 
                       variant="destructive"
                       onClick={() => selectedApp && deleteApplication(selectedApp.id)}
+                      className="bg-red-600 hover:bg-red-700"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete Application
@@ -307,7 +312,7 @@ const ApplicationsPage: React.FC = () => {
                 </CardFooter>
               </Card>
               
-              <Card className="bg-gray-800 text-white">
+              <Card className="bg-gray-900 text-white border-gray-800">
                 <CardHeader>
                   <CardTitle>Application List</CardTitle>
                   <CardDescription className="text-gray-300">
@@ -318,7 +323,7 @@ const ApplicationsPage: React.FC = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                       <thead>
-                        <tr className="border-b border-gray-700">
+                        <tr className="border-b border-gray-800">
                           <th className="text-left py-3 px-4">Application Name</th>
                           <th className="text-left py-3 px-4">Version</th>
                           <th className="text-left py-3 px-4">Status</th>
@@ -327,12 +332,12 @@ const ApplicationsPage: React.FC = () => {
                       </thead>
                       <tbody>
                         {applications.map(app => (
-                          <tr key={app.id} className="border-b border-gray-700">
+                          <tr key={app.id} className="border-b border-gray-800">
                             <td className="py-3 px-4">{app.name}</td>
                             <td className="py-3 px-4">{app.version}</td>
                             <td className="py-3 px-4">
                               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                app.is_active ? 'bg-green-700 text-green-100' : 'bg-gray-600 text-gray-200'
+                                app.is_active ? 'bg-green-600 text-green-100' : 'bg-gray-700 text-gray-200'
                               }`}>
                                 {app.is_active ? 'Active' : 'Paused'}
                               </span>
@@ -342,7 +347,7 @@ const ApplicationsPage: React.FC = () => {
                                 variant="ghost" 
                                 size="sm"
                                 onClick={() => setSelectedApp(app)}
-                                className={selectedApp?.id === app.id ? 'bg-blue-800' : ''}
+                                className={selectedApp?.id === app.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white'}
                               >
                                 {selectedApp?.id === app.id ? 'Selected' : 'Select'}
                               </Button>

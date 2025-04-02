@@ -17,49 +17,49 @@ const ApplicationCredentials: React.FC<ApplicationCredentialsProps> = ({ applica
 
   const CODE_EXAMPLES: Record<string, string> = {
     JavaScript: `
-keyauthapp = api(
+regzauthapp = api(
   name = "${application.name}",
   ownerid = "${application.owner_id}",
   version = "${application.version}",
   hash_to_check = getchecksum()
 )`,
     Python: `
-keyauthapp = api(
+regzauthapp = api(
   name = "${application.name}",
   ownerid = "${application.owner_id}",
   version = "${application.version}",
   hash_to_check = getchecksum()
 )`,
     CSharp: `
-KeyAuthApp = new api(
+RegzAuthApp = new api(
   name: "${application.name}",
   ownerid: "${application.owner_id}",
   version: "${application.version}",
   hash_to_check: getchecksum()
 );`,
     PHP: `
-$KeyAuthApp = new api(
+$RegzAuthApp = new api(
   name: "${application.name}",
   ownerid: "${application.owner_id}",
   version: "${application.version}",
   hash_to_check: getchecksum()
 );`,
     Java: `
-KeyAuthApp keyauthapp = new api(
+RegzAuthApp regzauthapp = new api(
   "${application.name}",
   "${application.owner_id}",
   "${application.version}",
   getchecksum()
 );`,
     Ruby: `
-keyauthapp = Api.new(
+regzauthapp = Api.new(
   name: "${application.name}",
   ownerid: "${application.owner_id}",
   version: "${application.version}",
   hash_to_check: getchecksum()
 )`,
     Go: `
-keyauthapp := api.New(
+regzauthapp := api.New(
   "${application.name}",
   "${application.owner_id}",
   "${application.version}",
@@ -98,7 +98,7 @@ keyauthapp := api.New(
               className={`${
                 activeLanguage === language 
                   ? "bg-blue-600 hover:bg-blue-700" 
-                  : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                  : "bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700"
               }`}
               onClick={() => setActiveLanguage(language)}
             >
@@ -117,7 +117,7 @@ keyauthapp := api.New(
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-2 right-2 bg-gray-800 hover:bg-gray-700"
+            className="absolute top-2 right-2 bg-gray-800 hover:bg-gray-700 text-gray-300"
             onClick={copyCredentials}
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -144,7 +144,7 @@ keyauthapp := api.New(
             <dt className="text-gray-400">Status:</dt>
             <dd className="text-white">
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                application.is_active ? 'bg-green-700 text-green-100' : 'bg-gray-600 text-gray-200'
+                application.is_active ? 'bg-green-600 text-green-100' : 'bg-gray-700 text-gray-200'
               }`}>
                 {application.is_active ? 'Active' : 'Paused'}
               </span>
