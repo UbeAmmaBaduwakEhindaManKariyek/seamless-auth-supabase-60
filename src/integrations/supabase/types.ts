@@ -156,6 +156,39 @@ export type Database = {
         }
         Relationships: []
       }
+      applications_registry: {
+        Row: {
+          app_secret: string
+          created_at: string | null
+          id: number
+          is_active: boolean | null
+          name: string
+          owner_id: string
+          updated_at: string | null
+          version: string
+        }
+        Insert: {
+          app_secret: string
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name: string
+          owner_id: string
+          updated_at?: string | null
+          version: string
+        }
+        Update: {
+          app_secret?: string
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string
+          updated_at?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
       benaxregz_giveaway: {
         Row: {
           created_at: string

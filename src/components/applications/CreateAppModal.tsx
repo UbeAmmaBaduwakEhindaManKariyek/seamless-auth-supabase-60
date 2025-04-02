@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { getActiveClient } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface CreateAppModalProps {
   open: boolean;
@@ -20,6 +22,39 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
     name?: string;
     version?: string;
   }>({});
+  const { toast } = useToast();
+  const supabase = getActiveClient();
+
+  // Fetch the latest app version when the modal opens
+  useEffect(() => {
+    if (open) {
+      fetchLatestAppVersion();
+    }
+  }, [open]);
+
+  const fetchLatestAppVersion = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_version')
+        .select('version')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data) {
+        setVersion(data.version);
+      } else {
+        setVersion('1.0');
+      }
+    } catch (err) {
+      console.error("Error fetching app version:", err);
+      toast({
+        title: "Warning",
+        description: "Could not fetch latest app version. Using default version.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +119,9 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
               className="bg-gray-800 border-gray-700 text-white"
             />
             {errors.version && <p className="text-red-400 text-xs">{errors.version}</p>}
+            <p className="text-xs text-gray-400">
+              This will use the latest version from your app settings.
+            </p>
           </div>
           
           <DialogFooter className="pt-4">

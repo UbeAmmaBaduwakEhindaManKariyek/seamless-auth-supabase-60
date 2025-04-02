@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,7 +30,7 @@ const ApplicationsPage: React.FC = () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
-        .from('applications_registry') // We'll use a new table specifically for app registry
+        .from('applications_registry')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -155,10 +154,20 @@ const ApplicationsPage: React.FC = () => {
   const handleCreateApp = async (name: string, version: string) => {
     try {
       setIsCreatingApp(true);
+      
+      if (!user || !user.username) {
+        toast({
+          title: "User information missing",
+          description: "Unable to create application without user data",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const newApp: Omit<Application, 'id'> = {
         name,
         version,
-        owner_id: user?.id || '',
+        owner_id: user.username,
         app_secret: crypto.randomUUID(),
         is_active: true,
       };

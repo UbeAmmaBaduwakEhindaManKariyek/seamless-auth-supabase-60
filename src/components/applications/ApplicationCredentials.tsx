@@ -37,6 +37,34 @@ KeyAuthApp = new api(
   version: "${application.version}",
   hash_to_check: getchecksum()
 );`,
+    PHP: `
+$KeyAuthApp = new api(
+  name: "${application.name}",
+  ownerid: "${application.owner_id}",
+  version: "${application.version}",
+  hash_to_check: getchecksum()
+);`,
+    Java: `
+KeyAuthApp keyauthapp = new api(
+  "${application.name}",
+  "${application.owner_id}",
+  "${application.version}",
+  getchecksum()
+);`,
+    Ruby: `
+keyauthapp = Api.new(
+  name: "${application.name}",
+  ownerid: "${application.owner_id}",
+  version: "${application.version}",
+  hash_to_check: getchecksum()
+)`,
+    Go: `
+keyauthapp := api.New(
+  "${application.name}",
+  "${application.owner_id}",
+  "${application.version}",
+  getchecksum(),
+)`,
   };
 
   const copyCredentials = () => {
@@ -52,7 +80,7 @@ KeyAuthApp = new api(
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const languages = ['JavaScript', 'Python', 'CSharp', 'PHP', 'Java', 'Ruby', 'Go'];
+  const languages = Object.keys(CODE_EXAMPLES);
 
   return (
     <Card className="bg-gray-900 border-gray-800">
