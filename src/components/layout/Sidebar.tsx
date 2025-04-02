@@ -12,7 +12,8 @@ import {
   Database,
   Home,
   LogOut,
-  FileWarning
+  FileWarning,
+  FileCode
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, isMobile = fal
     { name: 'App Open', path: '/app-open', icon: <FileText className="w-5 h-5" /> },
     { name: 'Login Details', path: '/login-details', icon: <FileWarning className="w-5 h-5" /> },
     { name: 'Logs', path: '/logs', icon: <Database className="w-5 h-5" /> },
+    { name: 'API Docs', path: '/api-docs', icon: <FileCode className="w-5 h-5" /> },
     { name: 'Webhooks', path: '/webhooks', icon: <Webhook className="w-5 h-5" /> },
     { name: 'Emu Users', path: '/emu-users', icon: <Users className="w-5 h-5" /> },
     { name: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> }
