@@ -31,7 +31,7 @@ const ApplicationsPage: React.FC = () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
-        .from('applications')
+        .from('applications_registry') // We'll use a new table specifically for app registry
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -45,9 +45,9 @@ const ApplicationsPage: React.FC = () => {
         return;
       }
 
-      setApplications(data || []);
+      setApplications(data as Application[] || []);
       if (data && data.length > 0 && !selectedApp) {
-        setSelectedApp(data[0]);
+        setSelectedApp(data[0] as Application);
       }
     } catch (err) {
       console.error("Error:", err);
@@ -60,7 +60,7 @@ const ApplicationsPage: React.FC = () => {
     try {
       setRefreshing(true);
       const { data, error } = await supabase
-        .from('applications')
+        .from('applications_registry')
         .update({ app_secret: crypto.randomUUID() })
         .eq('id', appId)
         .select()
@@ -74,9 +74,9 @@ const ApplicationsPage: React.FC = () => {
       });
       
       setApplications(prev => 
-        prev.map(app => app.id === appId ? data : app)
+        prev.map(app => app.id === appId ? data as Application : app)
       );
-      if (selectedApp?.id === appId) setSelectedApp(data);
+      if (selectedApp?.id === appId) setSelectedApp(data as Application);
     } catch (err) {
       console.error("Error refreshing secret:", err);
       toast({
@@ -92,7 +92,7 @@ const ApplicationsPage: React.FC = () => {
   const toggleAppStatus = async (appId: number, currentStatus: boolean) => {
     try {
       const { data, error } = await supabase
-        .from('applications')
+        .from('applications_registry')
         .update({ is_active: !currentStatus })
         .eq('id', appId)
         .select()
@@ -106,9 +106,9 @@ const ApplicationsPage: React.FC = () => {
       });
       
       setApplications(prev => 
-        prev.map(app => app.id === appId ? data : app)
+        prev.map(app => app.id === appId ? data as Application : app)
       );
-      if (selectedApp?.id === appId) setSelectedApp(data);
+      if (selectedApp?.id === appId) setSelectedApp(data as Application);
     } catch (err) {
       console.error("Error toggling app status:", err);
       toast({
@@ -126,7 +126,7 @@ const ApplicationsPage: React.FC = () => {
     
     try {
       const { error } = await supabase
-        .from('applications')
+        .from('applications_registry')
         .delete()
         .eq('id', appId);
 
@@ -155,16 +155,16 @@ const ApplicationsPage: React.FC = () => {
   const handleCreateApp = async (name: string, version: string) => {
     try {
       setIsCreatingApp(true);
-      const newApp = {
+      const newApp: Omit<Application, 'id'> = {
         name,
         version,
-        owner_id: user?.id,
+        owner_id: user?.id || '',
         app_secret: crypto.randomUUID(),
-        is_active: true
+        is_active: true,
       };
 
       const { data, error } = await supabase
-        .from('applications')
+        .from('applications_registry')
         .insert(newApp)
         .select()
         .single();
@@ -176,8 +176,8 @@ const ApplicationsPage: React.FC = () => {
         description: `'${name}' has been successfully created`,
       });
       
-      setApplications(prev => [data, ...prev]);
-      setSelectedApp(data);
+      setApplications(prev => [data as Application, ...prev]);
+      setSelectedApp(data as Application);
       setIsCreateModalOpen(false);
     } catch (err) {
       console.error("Error creating application:", err);

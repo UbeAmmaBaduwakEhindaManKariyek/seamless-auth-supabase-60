@@ -10,40 +10,37 @@ interface ApplicationCredentialsProps {
   application: Application;
 }
 
-const CODE_EXAMPLES: Record<string, string> = {
-  JavaScript: `
-keyauthapp = api(
-  name = "${application?.name || "Your Application"}",
-  ownerid = "${application?.owner_id || "your_owner_id"}",
-  version = "${application?.version || "1.0"}",
-  hash_to_check = getchecksum()
-)`,
-  Python: `
-keyauthapp = api(
-  name = "${application?.name || "Your Application"}",
-  ownerid = "${application?.owner_id || "your_owner_id"}",
-  version = "${application?.version || "1.0"}",
-  hash_to_check = getchecksum()
-)`,
-  CSharp: `
-KeyAuthApp = new api(
-  name: "${application?.name || "Your Application"}",
-  ownerid: "${application?.owner_id || "your_owner_id"}",
-  version: "${application?.version || "1.0"}",
-  hash_to_check: getchecksum()
-);`,
-};
-
 const ApplicationCredentials: React.FC<ApplicationCredentialsProps> = ({ application }) => {
   const [activeLanguage, setActiveLanguage] = useState<string>('JavaScript');
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
+  const CODE_EXAMPLES: Record<string, string> = {
+    JavaScript: `
+keyauthapp = api(
+  name = "${application.name}",
+  ownerid = "${application.owner_id}",
+  version = "${application.version}",
+  hash_to_check = getchecksum()
+)`,
+    Python: `
+keyauthapp = api(
+  name = "${application.name}",
+  ownerid = "${application.owner_id}",
+  version = "${application.version}",
+  hash_to_check = getchecksum()
+)`,
+    CSharp: `
+KeyAuthApp = new api(
+  name: "${application.name}",
+  ownerid: "${application.owner_id}",
+  version: "${application.version}",
+  hash_to_check: getchecksum()
+);`,
+  };
+
   const copyCredentials = () => {
-    const code = CODE_EXAMPLES[activeLanguage]
-      .replace('${application?.name}', application.name)
-      .replace('${application?.owner_id}', application.owner_id)
-      .replace('${application?.version}', application.version);
+    const code = CODE_EXAMPLES[activeLanguage];
       
     navigator.clipboard.writeText(code);
     setCopied(true);
@@ -84,11 +81,9 @@ const ApplicationCredentials: React.FC<ApplicationCredentialsProps> = ({ applica
         
         <div className="relative">
           <pre className="bg-black p-4 rounded-md text-green-400 overflow-x-auto">
-            <code>{CODE_EXAMPLES[activeLanguage]
-              .replace('${application?.name}', application.name)
-              .replace('${application?.owner_id}', application.owner_id)
-              .replace('${application?.version}', application.version)
-            }</code>
+            <code>
+              {CODE_EXAMPLES[activeLanguage] || `// Example for ${activeLanguage} not available yet`}
+            </code>
           </pre>
           
           <Button
