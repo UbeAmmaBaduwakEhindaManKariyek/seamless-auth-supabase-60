@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 // Layouts
@@ -34,32 +34,30 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            
-            <Route path="/" element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<Dashboard />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="licenses" element={<LicensesPage />} />
-              <Route path="subscriptions" element={<SubscriptionsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="webhooks" element={<WebhooksPage />} />
-              <Route path="logs" element={<LogsPage />} />
-              <Route path="login-details" element={<LoginDetailsPage />} />
-              <Route path="app-open" element={<AppOpenPage />} />
-              <Route path="emu-users" element={<EmuUsersPage />} />
-              <Route path="api-docs" element={<ApiDocsPage />} />
-            </Route>
-            
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          <Route path="/" element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="licenses" element={<LicensesPage />} />
+            <Route path="subscriptions" element={<SubscriptionsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="webhooks" element={<WebhooksPage />} />
+            <Route path="logs" element={<LogsPage />} />
+            <Route path="login-details" element={<LoginDetailsPage />} />
+            <Route path="app-open" element={<AppOpenPage />} />
+            <Route path="emu-users" element={<EmuUsersPage />} />
+            <Route path="api-docs" element={<ApiDocsPage />} />
+          </Route>
+          
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
