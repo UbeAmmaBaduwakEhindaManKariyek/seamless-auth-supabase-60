@@ -29,8 +29,8 @@ const ApplicationsPage: React.FC = () => {
   const fetchApplications = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('applications_registry')
+      const { data, error } = await (supabase
+        .from('applications_registry') as any)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -58,8 +58,8 @@ const ApplicationsPage: React.FC = () => {
   const refreshSecret = async (appId: number) => {
     try {
       setRefreshing(true);
-      const { data, error } = await supabase
-        .from('applications_registry')
+      const { data, error } = await (supabase
+        .from('applications_registry') as any)
         .update({ app_secret: crypto.randomUUID() })
         .eq('id', appId)
         .select()
@@ -90,8 +90,8 @@ const ApplicationsPage: React.FC = () => {
 
   const toggleAppStatus = async (appId: number, currentStatus: boolean) => {
     try {
-      const { data, error } = await supabase
-        .from('applications_registry')
+      const { data, error } = await (supabase
+        .from('applications_registry') as any)
         .update({ is_active: !currentStatus })
         .eq('id', appId)
         .select()
@@ -124,8 +124,8 @@ const ApplicationsPage: React.FC = () => {
     }
     
     try {
-      const { error } = await supabase
-        .from('applications_registry')
+      const { error } = await (supabase
+        .from('applications_registry') as any)
         .delete()
         .eq('id', appId);
 
@@ -172,8 +172,8 @@ const ApplicationsPage: React.FC = () => {
         is_active: true,
       };
 
-      const { data, error } = await supabase
-        .from('applications_registry')
+      const { data, error } = await (supabase
+        .from('applications_registry') as any)
         .insert(newApp)
         .select()
         .single();
