@@ -52,7 +52,7 @@ const SupabaseSetup: React.FC = () => {
   };
 
   return (
-    <Card className="bg-[#101010] border-gray-800">
+    <Card className="bg-[#101010] border-[#2a2a2a]">
       <CardHeader>
         <CardTitle className="text-xl font-bold text-white">Supabase Connection</CardTitle>
         <CardDescription className="text-gray-400">
@@ -91,7 +91,7 @@ const SupabaseSetup: React.FC = () => {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               required
-              className="bg-[#1a1a1a] border-gray-700 text-white"
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
             />
             <p className="text-xs text-gray-400">
               Example: https://tevmesjpsrsiuwswgzfb.supabase.co
@@ -107,7 +107,7 @@ const SupabaseSetup: React.FC = () => {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               required
-              className="bg-[#1a1a1a] border-gray-700 text-white"
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
             />
             <p className="text-xs text-gray-400">
               Use the anon/public key from your Supabase project settings
@@ -118,7 +118,7 @@ const SupabaseSetup: React.FC = () => {
           <Button 
             type="button" 
             variant="outline"
-            className="bg-[#1a1a1a] border-gray-700 text-white hover:bg-gray-700"
+            className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
             onClick={testConnection}
             disabled={isTestingConnection || !url || !apiKey}
           >

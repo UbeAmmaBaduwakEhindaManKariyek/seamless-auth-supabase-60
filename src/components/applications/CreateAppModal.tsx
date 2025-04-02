@@ -88,7 +88,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px] bg-gray-900 text-white border-gray-800">
+      <DialogContent className="sm:max-w-[425px] bg-[#121212] text-white border-[#2a2a2a]">
         <DialogHeader>
           <DialogTitle className="text-xl text-white">Create New Application</DialogTitle>
           <DialogDescription className="text-gray-400">
@@ -104,7 +104,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
               placeholder="My Application"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white"
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
             />
             {errors.name && <p className="text-red-400 text-xs">{errors.name}</p>}
           </div>
@@ -116,7 +116,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
               placeholder="1.0"
               value={version}
               onChange={(e) => setVersion(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white"
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
             />
             {errors.version && <p className="text-red-400 text-xs">{errors.version}</p>}
             <p className="text-xs text-gray-400">
@@ -129,7 +129,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
               type="button" 
               variant="outline" 
               onClick={handleClose}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
             >
               Cancel
             </Button>

@@ -18,6 +18,7 @@ const RegisterPage: React.FC = () => {
   const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRequiredFields, setShowRequiredFields] = useState(false);
+  const [registrationError, setRegistrationError] = useState('');
   
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRegistrationError('');
     
     if (!validatePassword()) return;
     
@@ -51,9 +53,15 @@ const RegisterPage: React.FC = () => {
         supabaseUrl,
         supabaseKey 
       });
+      
       if (success) {
         navigate('/');
+      } else {
+        setRegistrationError('Failed to create user account. Please check your information and try again.');
       }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setRegistrationError('An unexpected error occurred during registration.');
     } finally {
       setIsSubmitting(false);
     }
@@ -61,7 +69,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-      <Card className="w-[450px] bg-[#101010] border-gray-800">
+      <Card className="w-[450px] max-w-[90%] bg-[#101010] border-[#2a2a2a]">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold text-white">Create an account</CardTitle>
           <CardDescription className="text-gray-400">
@@ -79,6 +87,15 @@ const RegisterPage: React.FC = () => {
               </Alert>
             )}
             
+            {registrationError && (
+              <Alert className="bg-red-900 border-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {registrationError}
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-gray-300">
                 Email
@@ -90,7 +107,7 @@ const RegisterPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-2">
@@ -103,7 +120,7 @@ const RegisterPage: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-2">
@@ -117,7 +134,7 @@ const RegisterPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-2">
@@ -131,7 +148,7 @@ const RegisterPage: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               {passwordError && (
                 <p className="text-sm text-red-500">{passwordError}</p>
@@ -148,7 +165,7 @@ const RegisterPage: React.FC = () => {
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               <p className="text-xs text-gray-400">
                 Example: https://tevmesjpsrsiuwswgzfb.supabase.co
@@ -164,7 +181,7 @@ const RegisterPage: React.FC = () => {
                 value={supabaseKey}
                 onChange={(e) => setSupabaseKey(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               <p className="text-xs text-gray-400">
                 Use the anon/public key from your Supabase project settings

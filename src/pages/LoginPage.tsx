@@ -5,23 +5,32 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError('');
     setIsSubmitting(true);
     
     try {
       const success = await login({ username, password });
       if (success) {
         navigate('/');
+      } else {
+        setLoginError('Invalid username or password');
       }
+    } catch (error) {
+      console.error("Login error:", error);
+      setLoginError('An unexpected error occurred during login');
     } finally {
       setIsSubmitting(false);
     }
@@ -29,7 +38,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-      <Card className="w-[350px] bg-[#101010] border-gray-800">
+      <Card className="w-[350px] bg-[#101010] border-[#2a2a2a]">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold text-white">Login</CardTitle>
           <CardDescription className="text-gray-400">
@@ -38,6 +47,15 @@ const LoginPage: React.FC = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {loginError && (
+              <Alert className="bg-red-900 border-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {loginError}
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
               <label htmlFor="username" className="text-sm font-medium text-gray-300">
                 Username
@@ -48,7 +66,7 @@ const LoginPage: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-2">
@@ -62,7 +80,7 @@ const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-gray-700 text-white"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
             </div>
           </CardContent>
