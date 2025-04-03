@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Copy, Loader2, CheckCircle, RefreshCw, Pause, Play, Trash2, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { createCustomClient } from '@/integrations/supabase/client';
 import ApplicationCredentials from '@/components/applications/ApplicationCredentials';
 import CreateAppModal from '@/components/applications/CreateAppModal';
 import { Application } from '@/types/applications';
@@ -19,29 +19,90 @@ const ApplicationsPage: React.FC = () => {
   const [isCreatingApp, setIsCreatingApp] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
-  const supabase = getActiveClient();
+  
+  // Create a Supabase client using the user's credentials
+  const userSupabase = user?.supabaseUrl && user?.supabaseKey 
+    ? createCustomClient(user.supabaseUrl, user.supabaseKey)
+    : null;
 
   useEffect(() => {
-    fetchApplications();
-  }, []);
+    if (userSupabase) {
+      fetchApplications();
+    } else {
+      setConnectionError("No valid Supabase connection found. Please check your credentials.");
+      setIsLoading(false);
+    }
+  }, [userSupabase]);
 
   const fetchApplications = async () => {
+    if (!userSupabase) {
+      setConnectionError("Cannot connect to your Supabase project. Please check your credentials.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const { data, error } = await (supabase
-        .from('applications_registry') as any)
+      setConnectionError(null);
+      
+      // Check if the applications_registry table exists in the user's Supabase
+      const { error: checkTableError } = await userSupabase
+        .from('applications_registry')
+        .select('count', { count: 'exact', head: true });
+        
+      if (checkTableError) {
+        console.error("Error checking applications_registry table:", checkTableError);
+        
+        // Attempt to create the table if it doesn't exist
+        try {
+          const createTableSql = `
+            CREATE TABLE IF NOT EXISTS public.applications_registry (
+              id BIGSERIAL PRIMARY KEY,
+              name TEXT NOT NULL,
+              owner_id TEXT NOT NULL,
+              app_secret TEXT NOT NULL,
+              version TEXT NOT NULL,
+              is_active BOOLEAN DEFAULT true,
+              created_at TIMESTAMPTZ DEFAULT now(),
+              updated_at TIMESTAMPTZ DEFAULT now()
+            )
+          `;
+          
+          const { error: createError } = await userSupabase.rpc('execute_sql', { 
+            sql_query: createTableSql 
+          });
+          
+          if (createError) {
+            console.error("Failed to create applications_registry table:", createError);
+            setConnectionError("Failed to create necessary tables in your Supabase project. Please ensure you have the right permissions.");
+            setIsLoading(false);
+            return;
+          }
+          
+          toast({
+            title: "Applications table created",
+            description: "A new applications registry has been created in your Supabase project.",
+          });
+        } catch (createErr) {
+          console.error("Error creating table:", createErr);
+          setConnectionError("Failed to create necessary tables in your Supabase project.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Fetch applications from the user's Supabase
+      const { data, error } = await userSupabase
+        .from('applications_registry')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error("Error fetching applications:", error);
-        toast({
-          title: "Failed to load applications",
-          description: error.message,
-          variant: "destructive",
-        });
+        setConnectionError(`Failed to fetch applications: ${error.message}`);
         return;
       }
 
@@ -51,16 +112,26 @@ const ApplicationsPage: React.FC = () => {
       }
     } catch (err) {
       console.error("Error:", err);
+      setConnectionError(`An unexpected error occurred: ${err}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const refreshSecret = async (appId: number) => {
+    if (!userSupabase) {
+      toast({
+        title: "Connection error",
+        description: "Cannot connect to your Supabase project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       setRefreshing(true);
-      const { data, error } = await (supabase
-        .from('applications_registry') as any)
+      const { data, error } = await userSupabase
+        .from('applications_registry')
         .update({ app_secret: crypto.randomUUID() })
         .eq('id', appId)
         .select()
@@ -90,9 +161,18 @@ const ApplicationsPage: React.FC = () => {
   };
 
   const toggleAppStatus = async (appId: number, currentStatus: boolean) => {
+    if (!userSupabase) {
+      toast({
+        title: "Connection error",
+        description: "Cannot connect to your Supabase project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
-      const { data, error } = await (supabase
-        .from('applications_registry') as any)
+      const { data, error } = await userSupabase
+        .from('applications_registry')
         .update({ is_active: !currentStatus })
         .eq('id', appId)
         .select()
@@ -120,13 +200,22 @@ const ApplicationsPage: React.FC = () => {
   };
 
   const deleteApplication = async (appId: number) => {
+    if (!userSupabase) {
+      toast({
+        title: "Connection error",
+        description: "Cannot connect to your Supabase project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!confirm("Are you sure you want to delete this application? This action cannot be undone.")) {
       return;
     }
     
     try {
-      const { error } = await (supabase
-        .from('applications_registry') as any)
+      const { error } = await userSupabase
+        .from('applications_registry')
         .delete()
         .eq('id', appId);
 
@@ -153,6 +242,15 @@ const ApplicationsPage: React.FC = () => {
   };
 
   const handleCreateApp = async (name: string, version: string) => {
+    if (!userSupabase) {
+      toast({
+        title: "Connection error",
+        description: "Cannot connect to your Supabase project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       setIsCreatingApp(true);
       
@@ -173,8 +271,8 @@ const ApplicationsPage: React.FC = () => {
         is_active: true,
       };
 
-      const { data, error } = await (supabase
-        .from('applications_registry') as any)
+      const { data, error } = await userSupabase
+        .from('applications_registry')
         .insert(newApp)
         .select()
         .single();
@@ -205,6 +303,15 @@ const ApplicationsPage: React.FC = () => {
     <div className="container max-w-5xl">
       <h1 className="text-3xl font-bold mb-6">Manage Applications</h1>
       
+      {connectionError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Connection Error</AlertTitle>
+          <AlertDescription>
+            {connectionError}
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -216,13 +323,21 @@ const ApplicationsPage: React.FC = () => {
             <Button 
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               onClick={() => setIsCreateModalOpen(true)}
+              disabled={!userSupabase}
             >
               <Plus className="h-4 w-4" />
               Create Application
             </Button>
           </div>
           
-          {applications.length === 0 ? (
+          {!userSupabase ? (
+            <Alert>
+              <AlertTitle>No valid Supabase connection</AlertTitle>
+              <AlertDescription>
+                Please check your Supabase URL and API key in your account settings.
+              </AlertDescription>
+            </Alert>
+          ) : applications.length === 0 ? (
             <Alert>
               <AlertTitle>No applications found</AlertTitle>
               <AlertDescription>
