@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -158,22 +159,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return true;
           }
         }
-      }
-      
-      if (credentials.username && credentials.password) {
-        const mockUser: AuthUser = {
-          id: 1,
-          username: credentials.username,
-          email: `${credentials.username}@example.com`,
-          isAdmin: true
-        };
-        
-        saveUserToStorage(mockUser);
-        toast({
-          title: "Login successful (Demo mode)",
-          description: `Welcome back, ${mockUser.username}!`,
-        });
-        return true;
       }
       
       toast({

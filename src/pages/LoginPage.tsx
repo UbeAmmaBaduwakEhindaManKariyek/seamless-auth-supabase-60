@@ -40,7 +40,7 @@ const LoginPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-[#121212]">
       <Card className="w-[350px] bg-[#101010] border-[#2a2a2a]">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold text-white">Login</CardTitle>
+          <CardTitle className="text-2xl font-bold text-white">RegzAuth</CardTitle>
           <CardDescription className="text-gray-400">
             Enter your credentials to access your account
           </CardDescription>

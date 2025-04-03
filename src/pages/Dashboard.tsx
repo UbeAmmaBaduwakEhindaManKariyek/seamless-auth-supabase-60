@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import SupabaseSetup from '@/components/supabase/SupabaseSetup';
 import InstallTables from '@/components/supabase/InstallTables';
@@ -6,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { createCustomClient, executeRawSql } from '@/integrations/supabase/client';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Dashboard: React.FC = () => {
   const { user, isConnected, checkConnection } = useAuth();
@@ -78,6 +80,33 @@ const Dashboard: React.FC = () => {
         <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1>
         <p className="text-gray-400">Manage your application and users</p>
       </div>
+
+      {user && (
+        <Card className="bg-[#101010] border-[#2a2a2a]">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-white">Your Supabase Configuration</CardTitle>
+            <CardDescription className="text-gray-400">
+              These are your Supabase credentials used for connecting to your database
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-[#1a1a1a] rounded-md border border-[#2a2a2a]">
+              <p className="text-sm text-gray-300 mb-2">
+                <strong>Username:</strong> {user.username}
+              </p>
+              <p className="text-sm text-gray-300 mb-2">
+                <strong>Email:</strong> {user.email}
+              </p>
+              <p className="text-sm text-gray-300 mb-2">
+                <strong>Supabase URL:</strong> {user.supabaseUrl}
+              </p>
+              <p className="text-sm text-gray-300">
+                <strong>Supabase API Key:</strong> {user.supabaseKey?.substring(0, 10)}...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {isTestingConnection ? (
         <Alert className="bg-blue-900 border-blue-700">
