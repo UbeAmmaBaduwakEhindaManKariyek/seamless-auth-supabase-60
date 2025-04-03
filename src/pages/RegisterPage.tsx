@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -23,6 +24,7 @@ const RegisterPage: React.FC = () => {
   
   const { register } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const validatePassword = () => {
     if (password !== confirmPassword) {
@@ -33,30 +35,66 @@ const RegisterPage: React.FC = () => {
     return true;
   };
 
+  const validateInputs = () => {
+    if (!email || !username || !password || !confirmPassword || !supabaseUrl || !supabaseKey) {
+      setRegistrationError('All fields are required');
+      return false;
+    }
+    
+    // Basic URL validation
+    if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
+      setRegistrationError('Invalid Supabase URL format. It should be like https://your-project.supabase.co');
+      return false;
+    }
+    
+    // Basic key validation (should be non-empty and reasonably long)
+    if (supabaseKey.length < 20) {
+      setRegistrationError('Invalid Supabase API key format');
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegistrationError('');
     
     if (!validatePassword()) return;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      setShowRequiredFields(true);
-      return;
-    }
+    if (!validateInputs()) return;
     
     setIsSubmitting(true);
     
     try {
-      // First check if the web_login_regz table exists in the project's Supabase
-      const { error: checkTableError } = await supabase
+      console.log("Attempting to register with:", { email, username, password, supabaseUrl, supabaseKey });
+      
+      // First check if the user already exists
+      const { data: existingUser, error: checkError } = await supabase
         .from('web_login_regz')
-        .select('count', { count: 'exact', head: true });
-          
-      if (checkTableError) {
-        console.log("web_login_regz table might not exist, attempting to create it");
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking for existing user:", checkError);
+        setRegistrationError('An error occurred while checking for existing username');
+        return;
+      }
+      
+      if (existingUser) {
+        setRegistrationError('Username already exists. Please choose another one.');
+        return;
+      }
+      
+      // Attempt to create the table if it doesn't exist
+      try {
+        const { error: tableCheckError } = await supabase
+          .from('web_login_regz')
+          .select('count', { count: 'exact', head: true });
         
-        // Create the table if it doesn't exist
-        try {
+        if (tableCheckError) {
+          console.log("web_login_regz table might not exist, attempting to create it");
+          
           const { error: createTableError } = await supabase.rpc('execute_sql', {
             sql_query: `
               CREATE TABLE IF NOT EXISTS web_login_regz (
@@ -77,13 +115,35 @@ const RegisterPage: React.FC = () => {
             setRegistrationError("Failed to create necessary database tables. Please contact support.");
             return;
           }
-        } catch (error) {
-          console.error("Error creating web_login_regz table:", error);
-          setRegistrationError("Failed to create necessary database tables. Please contact support.");
-          return;
         }
+      } catch (error) {
+        console.error("Error checking/creating web_login_regz table:", error);
       }
       
+      // Insert the new user
+      const { error: insertError } = await supabase
+        .from('web_login_regz')
+        .insert({
+          username: username,
+          email: email,
+          password: password,
+          subscription_type: 'user',
+          supabase_url: supabaseUrl,
+          supabase_api_key: supabaseKey
+        });
+      
+      if (insertError) {
+        console.error("Error inserting new user:", insertError);
+        setRegistrationError(`Failed to create user account: ${insertError.message}`);
+        return;
+      }
+      
+      toast({
+        title: "Registration successful",
+        description: "Your account has been created successfully",
+      });
+      
+      // Call the register function from AuthContext
       const success = await register({ 
         email, 
         username, 
@@ -94,10 +154,12 @@ const RegisterPage: React.FC = () => {
       
       if (success) {
         navigate('/');
+      } else {
+        setRegistrationError('Registration successful but failed to log in automatically');
       }
     } catch (error) {
       console.error("Registration error:", error);
-      setRegistrationError('An unexpected error occurred during registration. Please try again.');
+      setRegistrationError(`An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -114,15 +176,6 @@ const RegisterPage: React.FC = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {showRequiredFields && (!supabaseUrl || !supabaseKey) && (
-              <Alert className="bg-red-900 border-red-700">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Supabase URL and API key are required for registration.
-                </AlertDescription>
-              </Alert>
-            )}
-            
             {registrationError && (
               <Alert className="bg-red-900 border-red-700">
                 <AlertCircle className="h-4 w-4" />
