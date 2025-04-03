@@ -6,20 +6,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
+
+// Using the fixed Supabase credentials from the project
+const SUPABASE_URL = "https://tevmesjpsrsiuwswgzfb.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRldm1lc2pwc3JzaXV3c3dnemZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc1NTMwNjksImV4cCI6MjA1MzEyOTA2OX0.ItHcLDWAjDMDre1twpp9yWfEc-VLcTu1Zy09UhgvO1I";
+
+// Initialize the Supabase client with the fixed credentials
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseUrl, setSupabaseUrl] = useState(SUPABASE_URL);
   const [supabaseKey, setSupabaseKey] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showRequiredFields, setShowRequiredFields] = useState(false);
   const [registrationError, setRegistrationError] = useState('');
   
   const { register } = useAuth();
@@ -36,19 +42,21 @@ const RegisterPage: React.FC = () => {
   };
 
   const validateInputs = () => {
-    if (!email || !username || !password || !confirmPassword || !supabaseUrl || !supabaseKey) {
-      setRegistrationError('All fields are required');
+    if (!email || !username || !password || !confirmPassword) {
+      setRegistrationError('Email, username, and password are required');
       return false;
     }
     
-    // Basic URL validation
-    if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
-      setRegistrationError('Invalid Supabase URL format. It should be like https://your-project.supabase.co');
-      return false;
+    // Basic URL validation for custom Supabase URL if provided
+    if (supabaseUrl && supabaseUrl !== SUPABASE_URL) {
+      if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
+        setRegistrationError('Invalid Supabase URL format. It should be like https://your-project.supabase.co');
+        return false;
+      }
     }
     
-    // Basic key validation (should be non-empty and reasonably long)
-    if (supabaseKey.length < 20) {
+    // Basic key validation if custom key is provided
+    if (supabaseKey && supabaseKey.length < 20) {
       setRegistrationError('Invalid Supabase API key format');
       return false;
     }
@@ -66,10 +74,10 @@ const RegisterPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      console.log("Attempting to register with:", { email, username, password, supabaseUrl, supabaseKey });
+      console.log("Attempting to register with:", { email, username, password });
       
       // First check if the user already exists
-      const { data: existingUser, error: checkError } = await supabase
+      const { data: existingUser, error: checkError } = await supabaseClient
         .from('web_login_regz')
         .select('username')
         .eq('username', username)
@@ -78,63 +86,32 @@ const RegisterPage: React.FC = () => {
       if (checkError) {
         console.error("Error checking for existing user:", checkError);
         setRegistrationError('An error occurred while checking for existing username');
+        setIsSubmitting(false);
         return;
       }
       
       if (existingUser) {
         setRegistrationError('Username already exists. Please choose another one.');
+        setIsSubmitting(false);
         return;
       }
       
-      // Attempt to create the table if it doesn't exist
-      try {
-        const { error: tableCheckError } = await supabase
-          .from('web_login_regz')
-          .select('count', { count: 'exact', head: true });
-        
-        if (tableCheckError) {
-          console.log("web_login_regz table might not exist, attempting to create it");
-          
-          const { error: createTableError } = await supabase.rpc('execute_sql', {
-            sql_query: `
-              CREATE TABLE IF NOT EXISTS web_login_regz (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL,
-                email TEXT NOT NULL,
-                password TEXT NOT NULL,
-                subscription_type TEXT NOT NULL,
-                supabase_url TEXT,
-                supabase_api_key TEXT,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-              )
-            `
-          });
-          
-          if (createTableError) {
-            console.error("Failed to create web_login_regz table:", createTableError);
-            setRegistrationError("Failed to create necessary database tables. Please contact support.");
-            return;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking/creating web_login_regz table:", error);
-      }
-      
-      // Insert the new user
-      const { error: insertError } = await supabase
+      // Insert the new user directly without attempting to create the table
+      const { error: insertError } = await supabaseClient
         .from('web_login_regz')
         .insert({
           username: username,
           email: email,
           password: password,
           subscription_type: 'user',
-          supabase_url: supabaseUrl,
-          supabase_api_key: supabaseKey
+          supabase_url: supabaseUrl !== SUPABASE_URL ? supabaseUrl : null,
+          supabase_api_key: supabaseKey || null
         });
       
       if (insertError) {
         console.error("Error inserting new user:", insertError);
         setRegistrationError(`Failed to create user account: ${insertError.message}`);
+        setIsSubmitting(false);
         return;
       }
       
@@ -148,8 +125,8 @@ const RegisterPage: React.FC = () => {
         email, 
         username, 
         password,
-        supabaseUrl,
-        supabaseKey 
+        supabaseUrl: supabaseUrl !== SUPABASE_URL ? supabaseUrl : SUPABASE_URL,
+        supabaseKey: supabaseKey || SUPABASE_KEY
       });
       
       if (success) {
@@ -246,34 +223,32 @@ const RegisterPage: React.FC = () => {
             
             <div className="space-y-2">
               <label htmlFor="supabaseUrl" className="text-sm font-medium text-gray-300">
-                Supabase URL
+                Supabase URL (Optional)
               </label>
               <Input
                 id="supabaseUrl"
                 placeholder="https://your-project.supabase.co"
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
-                required
                 className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               <p className="text-xs text-gray-400">
-                Example: https://tevmesjpsrsiuwswgzfb.supabase.co
+                Default: {SUPABASE_URL}
               </p>
             </div>
             <div className="space-y-2">
               <label htmlFor="supabaseKey" className="text-sm font-medium text-gray-300">
-                Supabase API Key
+                Supabase API Key (Optional)
               </label>
               <Input
                 id="supabaseKey"
                 placeholder="Your Supabase API Key"
                 value={supabaseKey}
                 onChange={(e) => setSupabaseKey(e.target.value)}
-                required
                 className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               <p className="text-xs text-gray-400">
-                Use the anon/public key from your Supabase project settings
+                Leave blank to use the default key
               </p>
             </div>
           </CardContent>
@@ -283,7 +258,12 @@ const RegisterPage: React.FC = () => {
               className="w-full bg-blue-600 hover:bg-blue-700" 
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Creating Account...' : 'Register'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Account...
+                </>
+              ) : 'Register'}
             </Button>
             <p className="text-sm text-gray-400">
               Already have an account?{" "}
