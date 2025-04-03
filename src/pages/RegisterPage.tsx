@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -46,6 +47,43 @@ const RegisterPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      // First check if the web_login_regz table exists in the project's Supabase
+      const { error: checkTableError } = await supabase
+        .from('web_login_regz')
+        .select('count', { count: 'exact', head: true });
+          
+      if (checkTableError) {
+        console.log("web_login_regz table might not exist, attempting to create it");
+        
+        // Create the table if it doesn't exist
+        try {
+          const { error: createTableError } = await supabase.rpc('execute_sql', {
+            sql_query: `
+              CREATE TABLE IF NOT EXISTS web_login_regz (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                email TEXT NOT NULL,
+                password TEXT NOT NULL,
+                subscription_type TEXT NOT NULL,
+                supabase_url TEXT,
+                supabase_api_key TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+              )
+            `
+          });
+          
+          if (createTableError) {
+            console.error("Failed to create web_login_regz table:", createTableError);
+            setRegistrationError("Failed to create necessary database tables. Please contact support.");
+            return;
+          }
+        } catch (error) {
+          console.error("Error creating web_login_regz table:", error);
+          setRegistrationError("Failed to create necessary database tables. Please contact support.");
+          return;
+        }
+      }
+      
       const success = await register({ 
         email, 
         username, 
@@ -56,12 +94,10 @@ const RegisterPage: React.FC = () => {
       
       if (success) {
         navigate('/');
-      } else {
-        setRegistrationError('Failed to create user account. Please check your information and try again.');
       }
     } catch (error) {
       console.error("Registration error:", error);
-      setRegistrationError('An unexpected error occurred during registration.');
+      setRegistrationError('An unexpected error occurred during registration. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

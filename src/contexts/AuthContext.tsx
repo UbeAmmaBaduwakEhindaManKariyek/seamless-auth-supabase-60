@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -110,15 +109,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      const client = getActiveClient();
-      const { data, error } = await client
+      const projectSupabase = supabase;
+      
+      const { data, error } = await projectSupabase
         .from('web_login_regz')
         .select('*')
         .eq('username', credentials.username)
         .maybeSingle();
-        
+      
       if (error) {
         console.error("Error querying web_login_regz:", error);
+        toast({
+          title: "Login failed",
+          description: "Failed to authenticate. Please check your credentials.",
+          variant: "destructive",
+        });
+        return false;
       }
       
       if (data && data.username === credentials.username) {
@@ -203,62 +209,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const customClient = createCustomClient(credentials.supabaseUrl, credentials.supabaseKey);
-      if (!customClient) {
-        toast({
-          title: "Registration failed",
-          description: "Failed to create Supabase client",
-          variant: "destructive",
-        });
-        return false;
-      }
+      const projectSupabase = supabase;
       
-      try {
-        const { error: checkTableError } = await customClient
-          .from('web_login_regz')
-          .select('count', { count: 'exact', head: true });
-          
-        if (checkTableError) {
-          console.log("web_login_regz table might not exist, attempting to create it");
-          
-          try {
-            const { error: createTableError } = await executeRawSql(`
-              CREATE TABLE IF NOT EXISTS web_login_regz (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL,
-                email TEXT NOT NULL,
-                password TEXT NOT NULL,
-                subscription_type TEXT NOT NULL,
-                supabase_url TEXT,
-                supabase_api_key TEXT,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-              )
-            `);
-            
-            if (createTableError) {
-              console.error("Failed to create web_login_regz table:", createTableError);
-              toast({
-                title: "Registration failed",
-                description: "Could not create required database tables",
-                variant: "destructive",
-              });
-              return false;
-            }
-          } catch (error) {
-            console.error("Error creating web_login_regz table:", error);
-            toast({
-              title: "Registration failed",
-              description: "Could not create required database tables",
-              variant: "destructive",
-            });
-            return false;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking web_login_regz table:", error);
-      }
-      
-      const { data: existingUser, error: checkUserError } = await customClient
+      const { data: existingUser, error: checkUserError } = await projectSupabase
         .from('web_login_regz')
         .select('username')
         .eq('username', credentials.username)
@@ -277,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const { error: insertError } = await customClient.from('web_login_regz').insert({
+      const { error: insertError } = await projectSupabase.from('web_login_regz').insert({
         username: credentials.username,
         email: credentials.email,
         password: credentials.password,
@@ -296,7 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const { data: newUser, error: fetchNewUserError } = await customClient
+      const { data: newUser, error: fetchNewUserError } = await projectSupabase
         .from('web_login_regz')
         .select('*')
         .eq('username', credentials.username)
