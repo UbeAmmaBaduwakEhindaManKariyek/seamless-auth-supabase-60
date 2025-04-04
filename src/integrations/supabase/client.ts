@@ -15,8 +15,10 @@ export const supabase = createClient<Database>(
   }
 );
 
-// Store for the custom client instance
+// Store for the custom client instance and its credentials
 let customClientInstance: ReturnType<typeof createClient<Database>> | null = null;
+let customClientUrl: string | null = null;
+let customClientKey: string | null = null;
 
 /**
  * Create and store a custom Supabase client with user-provided URL and key
@@ -35,8 +37,8 @@ export function createCustomClient(url: string, key: string) {
     
     // If we already have a client with the same credentials, return it
     if (customClientInstance && 
-        customClientInstance.supabaseUrl === cleanUrl && 
-        customClientInstance.supabaseKey === key) {
+        customClientUrl === cleanUrl && 
+        customClientKey === key) {
       return customClientInstance;
     }
     
@@ -52,10 +54,16 @@ export function createCustomClient(url: string, key: string) {
       }
     });
     
+    // Store the URL and key for later comparison
+    customClientUrl = cleanUrl;
+    customClientKey = key;
+    
     return customClientInstance;
   } catch (error) {
     console.error("Error creating custom Supabase client:", error);
     customClientInstance = null;
+    customClientUrl = null;
+    customClientKey = null;
     return null;
   }
 }
@@ -82,6 +90,8 @@ export function getActiveClient() {
  */
 export function resetCustomClient() {
   customClientInstance = null;
+  customClientUrl = null;
+  customClientKey = null;
 }
 
 /**
