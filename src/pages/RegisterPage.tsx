@@ -14,8 +14,6 @@ const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [supabaseUrl, setSupabaseUrl] = useState('https://tevmesjpsrsiuwswgzfb.supabase.co');
-  const [supabaseKey, setSupabaseKey] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registrationError, setRegistrationError] = useState('');
@@ -39,20 +37,6 @@ const RegisterPage: React.FC = () => {
       return false;
     }
     
-    // Basic URL validation for custom Supabase URL if provided
-    if (supabaseUrl && supabaseUrl !== 'https://tevmesjpsrsiuwswgzfb.supabase.co') {
-      if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
-        setRegistrationError('Invalid Supabase URL format. It should be like https://your-project.supabase.co');
-        return false;
-      }
-    }
-    
-    // Basic key validation if custom key is provided
-    if (supabaseKey && supabaseKey.length < 20) {
-      setRegistrationError('Invalid Supabase API key format');
-      return false;
-    }
-    
     return true;
   };
 
@@ -68,13 +52,11 @@ const RegisterPage: React.FC = () => {
     try {
       console.log("Attempting to register with:", { email, username, password });
       
-      // Call the register function from AuthContext
+      // Call the register function from AuthContext with only the basic user info
       const success = await register({ 
         email, 
         username, 
-        password,
-        supabaseUrl: supabaseUrl !== 'https://tevmesjpsrsiuwswgzfb.supabase.co' ? supabaseUrl : undefined,
-        supabaseKey: supabaseKey || undefined
+        password
       });
       
       if (success) {
@@ -171,37 +153,6 @@ const RegisterPage: React.FC = () => {
               {passwordError && (
                 <p className="text-sm text-red-500">{passwordError}</p>
               )}
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="supabaseUrl" className="text-sm font-medium text-gray-300">
-                Supabase URL (Optional)
-              </label>
-              <Input
-                id="supabaseUrl"
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
-              />
-              <p className="text-xs text-gray-400">
-                Default: https://tevmesjpsrsiuwswgzfb.supabase.co
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="supabaseKey" className="text-sm font-medium text-gray-300">
-                Supabase API Key (Optional)
-              </label>
-              <Input
-                id="supabaseKey"
-                placeholder="Your Supabase API Key"
-                value={supabaseKey}
-                onChange={(e) => setSupabaseKey(e.target.value)}
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
-              />
-              <p className="text-xs text-gray-400">
-                Leave blank to use the default key
-              </p>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
