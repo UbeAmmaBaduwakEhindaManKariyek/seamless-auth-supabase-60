@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Copy, Loader2, CheckCircle, RefreshCw, Pause, Play, Trash2, Plus, User } from 'lucide-react';
+import { Copy, Loader2, CheckCircle, RefreshCw, Pause, Play, Trash2, Plus, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createCustomClient } from '@/integrations/supabase/client';
 import ApplicationCredentials from '@/components/applications/ApplicationCredentials';
@@ -19,6 +20,7 @@ const ApplicationsPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -31,14 +33,14 @@ const ApplicationsPage: React.FC = () => {
     if (userSupabase) {
       fetchApplications();
     } else {
-      setConnectionError("No valid Supabase connection found. Please check your credentials.");
+      setConnectionError("No valid Supabase connection found. Please check your credentials in settings.");
       setIsLoading(false);
     }
-  }, [userSupabase]);
+  }, [userSupabase, retryCount]);
 
   const fetchApplications = async () => {
     if (!userSupabase) {
-      setConnectionError("Cannot connect to your Supabase project. Please check your credentials.");
+      setConnectionError("Cannot connect to your Supabase project. Please check your credentials in settings.");
       setIsLoading(false);
       return;
     }
@@ -76,7 +78,11 @@ const ApplicationsPage: React.FC = () => {
           
           if (createError) {
             console.error("Failed to create applications_registry table:", createError);
-            setConnectionError("Failed to create necessary tables in your Supabase project. Please ensure you have the right permissions.");
+            if (createError.message.includes("Could not find the function")) {
+              setConnectionError("Your Supabase project doesn't have the required SQL execution function. Please ensure you have the correct permissions or contact support.");
+            } else {
+              setConnectionError("Failed to create necessary tables in your Supabase project. Please ensure you have the right permissions.");
+            }
             setIsLoading(false);
             return;
           }
@@ -101,7 +107,11 @@ const ApplicationsPage: React.FC = () => {
 
       if (error) {
         console.error("Error fetching applications:", error);
-        setConnectionError(`Failed to fetch applications: ${error.message}`);
+        if (error.message.includes("connect error")) {
+          setConnectionError("Connection to Supabase failed. The service might be down or unreachable.");
+        } else {
+          setConnectionError(`Failed to fetch applications: ${error.message}`);
+        }
         return;
       }
 
@@ -298,6 +308,14 @@ const ApplicationsPage: React.FC = () => {
     }
   };
 
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    toast({
+      title: "Retrying connection",
+      description: "Attempting to reconnect to Supabase...",
+    });
+  };
+
   return (
     <div className="container max-w-5xl">
       {user && (
@@ -354,16 +372,29 @@ const ApplicationsPage: React.FC = () => {
       
       {connectionError && (
         <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4 mr-2" />
           <AlertTitle>Connection Error</AlertTitle>
           <AlertDescription>
             {connectionError}
+            <div className="mt-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleRetry}
+                className="mt-2 bg-red-950 border-red-800 hover:bg-red-900"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry Connection
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
       
       {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <div className="flex flex-col justify-center items-center h-64 gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+          <p className="text-gray-400">Connecting to Supabase and loading your applications...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
