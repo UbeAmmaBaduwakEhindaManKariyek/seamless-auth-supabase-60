@@ -32,14 +32,20 @@ export function createCustomClient(url: string, key: string) {
     const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
     
     console.log("Creating custom Supabase client with URL:", cleanUrl);
+    
+    // If we already have a client with the same credentials, return it
+    if (customClientInstance && 
+        customClientInstance.supabaseUrl === cleanUrl && 
+        customClientInstance.supabaseKey === key) {
+      return customClientInstance;
+    }
+    
     customClientInstance = createClient<Database>(cleanUrl, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
       },
-      // Add custom function to execute SQL queries
       global: {
-        // This is needed for backwards compatibility
         headers: {
           'x-my-custom-header': 'custom-value'
         }
@@ -83,6 +89,32 @@ export function resetCustomClient() {
  */
 export function hasCustomClient(): boolean {
   return customClientInstance !== null;
+}
+
+/**
+ * Test the connection to the Supabase instance
+ * Returns true if the connection is successful, false otherwise
+ */
+export async function testConnection(client = getActiveClient()) {
+  try {
+    const { error } = await client.from('applications_registry')
+      .select('count', { count: 'exact', head: true })
+      .limit(1);
+      
+    if (error) {
+      // Try an alternative table if applications_registry doesn't exist
+      const { error: altError } = await client.from('web_login_regz')
+        .select('count', { count: 'exact', head: true })
+        .limit(1);
+        
+      return !altError;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Test connection failed:", error);
+    return false;
+  }
 }
 
 // Add the executeRawSql method explicitly to the SupabaseClient type
