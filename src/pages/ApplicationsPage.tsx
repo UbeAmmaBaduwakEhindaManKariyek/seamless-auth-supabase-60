@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Copy, Loader2, CheckCircle, RefreshCw, Pause, Play, Trash2, Plus } from 'lucide-react';
+import { Copy, Loader2, CheckCircle, RefreshCw, Pause, Play, Trash2, Plus, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createCustomClient } from '@/integrations/supabase/client';
 import ApplicationCredentials from '@/components/applications/ApplicationCredentials';
@@ -301,6 +300,56 @@ const ApplicationsPage: React.FC = () => {
 
   return (
     <div className="container max-w-5xl">
+      {user && (
+        <Card className="mb-6 border-gray-800 bg-gray-900 text-white">
+          <CardHeader className="pb-3">
+            <div className="flex items-center">
+              <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center mr-3">
+                <User className="h-6 w-6" />
+              </div>
+              <div>
+                <CardTitle>User Profile</CardTitle>
+                <CardDescription className="text-gray-300">
+                  Your account information
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-gray-400 text-sm">Username</p>
+                <p className="text-white font-medium">{user.username}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Email</p>
+                <p className="text-white font-medium">{user.email || "Not provided"}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Account Type</p>
+                <p className="text-white font-medium">
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    user.isAdmin ? 'bg-purple-600 text-purple-100' : 'bg-blue-600 text-blue-100'
+                  }`}>
+                    {user.isAdmin ? 'Administrator' : 'Regular User'}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Supabase Connection</p>
+                <p className="text-white font-medium">
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    user.supabaseUrl && user.supabaseKey ? 'bg-green-600 text-green-100' : 'bg-red-600 text-red-100'
+                  }`}>
+                    {user.supabaseUrl && user.supabaseKey ? 'Connected' : 'Not Connected'}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <h1 className="text-3xl font-bold mb-6">Manage Applications</h1>
       
       {connectionError && (
