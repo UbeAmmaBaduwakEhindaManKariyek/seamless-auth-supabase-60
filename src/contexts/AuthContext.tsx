@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -189,28 +190,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (credentials: UserCredentials): Promise<boolean> => {
     try {
       setIsLoading(true);
+      console.log("Register function called with:", credentials);
       
-      if (!credentials.supabaseUrl || !credentials.supabaseKey) {
-        toast({
-          title: "Registration failed",
-          description: "Supabase URL and API key are required for registration",
-          variant: "destructive",
-        });
-        return false;
-      }
-      
-      const connected = await checkSupabaseConnection(credentials.supabaseUrl, credentials.supabaseKey);
-      if (!connected) {
-        toast({
-          title: "Connection failed",
-          description: "Could not connect to Supabase with the provided URL and API key",
-          variant: "destructive",
-        });
-        return false;
-      }
-      
+      // Using the default supabase client for registration
       const projectSupabase = supabase;
       
+      // Check if username already exists
       const { data: existingUser, error: checkUserError } = await projectSupabase
         .from('web_login_regz')
         .select('username')
@@ -219,6 +204,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (checkUserError) {
         console.error("Error checking for existing user:", checkUserError);
+        toast({
+          title: "Registration failed",
+          description: "Error checking username availability",
+          variant: "destructive",
+        });
+        return false;
       }
       
       if (existingUser) {
@@ -230,59 +221,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const { error: insertError } = await projectSupabase.from('web_login_regz').insert({
-        username: credentials.username,
-        email: credentials.email,
-        password: credentials.password,
-        subscription_type: 'user',
-        supabase_url: credentials.supabaseUrl,
-        supabase_api_key: credentials.supabaseKey
-      });
+      // Create new user
+      const { error: insertError } = await projectSupabase
+        .from('web_login_regz')
+        .insert({
+          username: credentials.username,
+          email: credentials.email,
+          password: credentials.password,
+          subscription_type: 'user',
+          supabase_url: credentials.supabaseUrl,
+          supabase_api_key: credentials.supabaseKey
+        });
       
       if (insertError) {
         console.error("Error inserting new user:", insertError);
         toast({
           title: "Registration failed",
-          description: "Failed to create user account",
+          description: `Failed to create user account: ${insertError.message}`,
           variant: "destructive",
         });
         return false;
       }
       
+      // Get the newly created user
       const { data: newUser, error: fetchNewUserError } = await projectSupabase
         .from('web_login_regz')
         .select('*')
         .eq('username', credentials.username)
         .maybeSingle();
-        
-      if (fetchNewUserError) {
-        console.error("Error fetching new user:", fetchNewUserError);
-      }
       
-      if (newUser) {
-        const userWithSupabaseConfig: AuthUser = {
-          id: newUser.id,
-          username: newUser.username,
-          email: newUser.email,
-          isAdmin: newUser.subscription_type === 'admin',
-          supabaseUrl: newUser.supabase_url,
-          supabaseKey: newUser.supabase_api_key
-        };
-        
-        saveUserToStorage(userWithSupabaseConfig);
+      if (fetchNewUserError || !newUser) {
+        console.error("Error fetching new user:", fetchNewUserError);
         toast({
-          title: "Registration successful",
-          description: `Welcome, ${userWithSupabaseConfig.username}!`,
-        });
-        return true;
-      } else {
-        toast({
-          title: "Registration error",
-          description: "User created but failed to retrieve user details",
+          title: "Registration partial success",
+          description: "Account created but unable to log in automatically",
           variant: "destructive",
         });
         return false;
       }
+      
+      // Create user object and save to storage
+      const userWithSupabaseConfig: AuthUser = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        isAdmin: newUser.subscription_type === 'admin',
+        supabaseUrl: newUser.supabase_url,
+        supabaseKey: newUser.supabase_api_key
+      };
+      
+      saveUserToStorage(userWithSupabaseConfig);
+      
+      // Connect to custom supabase if provided
+      if (newUser.supabase_url && newUser.supabase_api_key) {
+        await checkSupabaseConnection(newUser.supabase_url, newUser.supabase_api_key);
+      }
+      
+      toast({
+        title: "Registration successful",
+        description: `Welcome, ${userWithSupabaseConfig.username}!`,
+      });
+      
+      return true;
     } catch (error) {
       console.error("Registration error:", error);
       toast({

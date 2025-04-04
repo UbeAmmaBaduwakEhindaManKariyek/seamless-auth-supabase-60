@@ -7,22 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
-
-// Using the fixed Supabase credentials from the project
-const SUPABASE_URL = "https://tevmesjpsrsiuwswgzfb.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRldm1lc2pwc3JzaXV3c3dnemZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc1NTMwNjksImV4cCI6MjA1MzEyOTA2OX0.ItHcLDWAjDMDre1twpp9yWfEc-VLcTu1Zy09UhgvO1I";
-
-// Initialize the Supabase client with the fixed credentials
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [supabaseUrl, setSupabaseUrl] = useState(SUPABASE_URL);
+  const [supabaseUrl, setSupabaseUrl] = useState('https://tevmesjpsrsiuwswgzfb.supabase.co');
   const [supabaseKey, setSupabaseKey] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +40,7 @@ const RegisterPage: React.FC = () => {
     }
     
     // Basic URL validation for custom Supabase URL if provided
-    if (supabaseUrl && supabaseUrl !== SUPABASE_URL) {
+    if (supabaseUrl && supabaseUrl !== 'https://tevmesjpsrsiuwswgzfb.supabase.co') {
       if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
         setRegistrationError('Invalid Supabase URL format. It should be like https://your-project.supabase.co');
         return false;
@@ -76,63 +68,23 @@ const RegisterPage: React.FC = () => {
     try {
       console.log("Attempting to register with:", { email, username, password });
       
-      // First check if the user already exists
-      const { data: existingUser, error: checkError } = await supabaseClient
-        .from('web_login_regz')
-        .select('username')
-        .eq('username', username)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking for existing user:", checkError);
-        setRegistrationError('An error occurred while checking for existing username');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (existingUser) {
-        setRegistrationError('Username already exists. Please choose another one.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Insert the new user directly without attempting to create the table
-      const { error: insertError } = await supabaseClient
-        .from('web_login_regz')
-        .insert({
-          username: username,
-          email: email,
-          password: password,
-          subscription_type: 'user',
-          supabase_url: supabaseUrl !== SUPABASE_URL ? supabaseUrl : null,
-          supabase_api_key: supabaseKey || null
-        });
-      
-      if (insertError) {
-        console.error("Error inserting new user:", insertError);
-        setRegistrationError(`Failed to create user account: ${insertError.message}`);
-        setIsSubmitting(false);
-        return;
-      }
-      
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created successfully",
-      });
-      
       // Call the register function from AuthContext
       const success = await register({ 
         email, 
         username, 
         password,
-        supabaseUrl: supabaseUrl !== SUPABASE_URL ? supabaseUrl : SUPABASE_URL,
-        supabaseKey: supabaseKey || SUPABASE_KEY
+        supabaseUrl: supabaseUrl !== 'https://tevmesjpsrsiuwswgzfb.supabase.co' ? supabaseUrl : undefined,
+        supabaseKey: supabaseKey || undefined
       });
       
       if (success) {
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created",
+        });
         navigate('/');
       } else {
-        setRegistrationError('Registration successful but failed to log in automatically');
+        setRegistrationError('Failed to create user account. Username may already exist or there was a connection issue.');
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -233,7 +185,7 @@ const RegisterPage: React.FC = () => {
                 className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
               />
               <p className="text-xs text-gray-400">
-                Default: {SUPABASE_URL}
+                Default: https://tevmesjpsrsiuwswgzfb.supabase.co
               </p>
             </div>
             <div className="space-y-2">
