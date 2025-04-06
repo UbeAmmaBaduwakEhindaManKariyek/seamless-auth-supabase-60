@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, AlertCircle, UserPlus, RefreshCw, Settings, Ban, Edit, Trash, Check } from 'lucide-react';
+import { Loader2, AlertCircle, UserPlus, RefreshCw, Settings, Ban, Edit, Trash, Check, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface User {
   id: number;
@@ -50,7 +51,9 @@ const UsersPage = () => {
   const { toast } = useToast();
   const [activePage, setActivePage] = useState(1);
   const [filter, setFilter] = useState<'all' | 'approved' | 'pending' | 'banned'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const usersPerPage = 10;
+  const isMobile = useIsMobile();
   
   // Modal states
   const [userDialogOpen, setUserDialogOpen] = useState(false);
@@ -71,25 +74,36 @@ const UsersPage = () => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
-  // Filter and paginate users
-  const filteredUsers = users.filter(u => {
-    if (filter === 'all') return true;
-    if (filter === 'approved') return u.admin_approval === true;
-    if (filter === 'pending') return u.admin_approval === false;
-    if (filter === 'banned') return u.banned === true;
-    return true;
+  // Search and filter users
+  const searchedAndFilteredUsers = users.filter(u => {
+    // Search filter
+    const matchesSearch = searchQuery ? 
+      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.subscription && u.subscription.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      String(u.id).includes(searchQuery) : 
+      true;
+    
+    // Tab filter
+    const matchesTab = 
+      (filter === 'all') ? true :
+      (filter === 'approved') ? u.admin_approval === true :
+      (filter === 'pending') ? u.admin_approval === false :
+      (filter === 'banned') ? u.banned === true :
+      true;
+    
+    return matchesSearch && matchesTab;
   });
 
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-  const currentUsers = filteredUsers.slice(
+  const totalPages = Math.ceil(searchedAndFilteredUsers.length / usersPerPage);
+  const currentUsers = searchedAndFilteredUsers.slice(
     (activePage - 1) * usersPerPage,
     activePage * usersPerPage
   );
 
-  // Reset to page 1 when filter changes
+  // Reset to page 1 when filter or search changes
   useEffect(() => {
     setActivePage(1);
-  }, [filter]);
+  }, [filter, searchQuery]);
 
   const openCreateUserDialog = () => {
     setEditingUser(null);
@@ -334,27 +348,64 @@ const UsersPage = () => {
     <div className="space-y-6 bg-[#0a0a0a] p-4 md:p-6 rounded-lg">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-bold text-gray-200">Users</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={openCreateUserDialog}>
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto text-white" 
+          onClick={openCreateUserDialog}
+        >
           <UserPlus className="h-4 w-4 mr-2" />
           Create User
         </Button>
       </div>
 
       <Card className="bg-[#121212] border-gray-800">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="text-gray-200">User Management</CardTitle>
           <CardDescription className="text-gray-400">
             Manage user accounts and permissions
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Search bar */}
+          <div className="relative mb-4">
+            <Search className="h-4 w-4 absolute left-3 top-3 text-gray-500" />
+            <Input
+              placeholder="Search by username, ID or subscription..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-[#1a1a1a] border-gray-700 text-white"
+            />
+          </div>
+          
           <Tabs defaultValue="all" onValueChange={(value) => setFilter(value as any)}>
-            <TabsList className="grid grid-cols-4 mb-6 bg-[#1a1a1a]">
-              <TabsTrigger value="all" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">All Users</TabsTrigger>
-              <TabsTrigger value="approved" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Approved</TabsTrigger>
-              <TabsTrigger value="pending" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Pending</TabsTrigger>
-              <TabsTrigger value="banned" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Banned</TabsTrigger>
+            <TabsList className={`grid ${isMobile ? 'grid-cols-2 gap-1' : 'grid-cols-4'} mb-6 bg-[#1a1a1a]`}>
+              <TabsTrigger value="all" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                All Users
+              </TabsTrigger>
+              <TabsTrigger value="approved" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                Approved
+              </TabsTrigger>
+              {!isMobile && (
+                <>
+                  <TabsTrigger value="pending" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                    Pending
+                  </TabsTrigger>
+                  <TabsTrigger value="banned" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                    Banned
+                  </TabsTrigger>
+                </>
+              )}
             </TabsList>
+            
+            {isMobile && (
+              <TabsList className="grid grid-cols-2 gap-1 mb-6 bg-[#1a1a1a]">
+                <TabsTrigger value="pending" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger value="banned" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  Banned
+                </TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="all" className="space-y-4">
               <UserTable 
@@ -365,6 +416,7 @@ const UsersPage = () => {
                 onEdit={openEditUserDialog}
                 onDelete={confirmDelete}
                 onToggleBan={handleToggleBan}
+                isMobile={isMobile}
               />
             </TabsContent>
             
@@ -377,6 +429,7 @@ const UsersPage = () => {
                 onEdit={openEditUserDialog}
                 onDelete={confirmDelete}
                 onToggleBan={handleToggleBan}
+                isMobile={isMobile}
               />
             </TabsContent>
             
@@ -389,6 +442,7 @@ const UsersPage = () => {
                 onEdit={openEditUserDialog}
                 onDelete={confirmDelete}
                 onToggleBan={handleToggleBan}
+                isMobile={isMobile}
               />
             </TabsContent>
             
@@ -401,6 +455,7 @@ const UsersPage = () => {
                 onEdit={openEditUserDialog}
                 onDelete={confirmDelete}
                 onToggleBan={handleToggleBan}
+                isMobile={isMobile}
               />
             </TabsContent>
           </Tabs>
@@ -603,6 +658,7 @@ interface UserTableProps {
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
   onToggleBan: (user: User) => void;
+  isMobile: boolean;
 }
 
 const UserTable: React.FC<UserTableProps> = ({ 
@@ -612,7 +668,8 @@ const UserTable: React.FC<UserTableProps> = ({
   onPageChange,
   onEdit,
   onDelete,
-  onToggleBan
+  onToggleBan,
+  isMobile
 }) => {
   if (users.length === 0) {
     return (
@@ -633,6 +690,89 @@ const UserTable: React.FC<UserTableProps> = ({
     }
   };
 
+  // Mobile optimized table rendering
+  if (isMobile) {
+    return (
+      <>
+        <div className="space-y-4">
+          {users.map((user) => (
+            <div key={user.id} className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <span className="text-gray-400 text-xs">ID: {user.id}</span>
+                  <h3 className="text-white font-medium">{user.username}</h3>
+                </div>
+                <div>
+                  {user.banned ? (
+                    <span className="px-2 py-1 rounded-full text-xs bg-red-900 text-red-200">
+                      Banned
+                    </span>
+                  ) : user.admin_approval ? (
+                    <span className="px-2 py-1 rounded-full text-xs bg-green-900 text-green-200">
+                      Approved
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-full text-xs bg-yellow-900 text-yellow-200">
+                      Pending
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-gray-300 text-sm mb-3">
+                <div>Subscription: {user.subscription || 'Default'}</div>
+                <div>Expires: {formatDate(user.expiredate)}</div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => onEdit(user)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={user.banned ? "outline" : "destructive"} 
+                  className={user.banned ? "border-gray-700 text-gray-300 hover:bg-gray-800" : ""}
+                  onClick={() => onToggleBan(user)}
+                >
+                  {user.banned ? <Check className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => onDelete(user)}>
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-4 text-gray-300">
+            <Button 
+              variant="outline" 
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              size="sm"
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button 
+              variant="outline" 
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              size="sm"
+            >
+              Next
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Desktop view
   return (
     <>
       <div className="overflow-x-auto">
@@ -736,3 +876,4 @@ const UserTable: React.FC<UserTableProps> = ({
 };
 
 export default UsersPage;
+

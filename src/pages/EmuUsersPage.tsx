@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { RefreshCw, Github } from 'lucide-react';
+import { RefreshCw, Github, Search } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface EmuUser {
   username: string;
@@ -19,8 +20,20 @@ const EmuUsersPage: React.FC = () => {
   const [githubToken, setGithubToken] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  
+  // Filter users based on search query
+  const filteredUsers = emuUsers.filter(user => {
+    if (!searchQuery) return true;
+    
+    return (
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.motherboard_serial.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
   
   // Simulated fetch users from GitHub
   const fetchUsers = () => {
@@ -104,7 +117,7 @@ const EmuUsersPage: React.FC = () => {
         <CardFooter>
           <Button 
             onClick={fetchUsers}
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -120,36 +133,86 @@ const EmuUsersPage: React.FC = () => {
         </CardFooter>
       </Card>
       
-      <div className="rounded-md border border-gray-800 overflow-hidden">
-        <Table>
-          <TableHeader className="bg-[#0a0a0a]">
-            <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
-              <TableHead className="text-gray-300">Username</TableHead>
-              <TableHead className="text-gray-300">Password</TableHead>
-              <TableHead className="text-gray-300">Motherboard Serial</TableHead>
-              <TableHead className="text-gray-300">Expiration Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {emuUsers.length === 0 ? (
-              <TableRow className="hover:bg-[#151515] border-gray-800">
-                <TableCell colSpan={4} className="text-center py-10 text-gray-400">
-                  No users found. Configure GitHub and fetch users to get started.
-                </TableCell>
-              </TableRow>
-            ) : (
-              emuUsers.map((user, index) => (
-                <TableRow key={index} className="hover:bg-[#151515] border-gray-800">
-                  <TableCell className="font-medium text-white">{user.username}</TableCell>
-                  <TableCell className="text-white">{user.password}</TableCell>
-                  <TableCell className="text-white">{user.motherboard_serial || 'N/A'}</TableCell>
-                  <TableCell className="text-white">{user.expiration_date}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <Card className="bg-[#101010] border-gray-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-xl font-bold text-white">Emu Users List</CardTitle>
+          <CardDescription className="text-gray-400">
+            {emuUsers.length} users found
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Search bar */}
+          {emuUsers.length > 0 && (
+            <div className="relative mb-4">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-gray-500" />
+              <Input
+                placeholder="Search by username or serial..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-[#1a1a1a] border-gray-700 text-white"
+              />
+            </div>
+          )}
+          
+          {isMobile ? (
+            // Mobile view - card based
+            <div className="space-y-4">
+              {filteredUsers.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  {emuUsers.length === 0 ? 
+                    "No users found. Configure GitHub and fetch users to get started." : 
+                    "No users match your search criteria."}
+                </div>
+              ) : (
+                filteredUsers.map((user, index) => (
+                  <div key={index} className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                    <h3 className="text-white font-medium mb-2">{user.username}</h3>
+                    <div className="text-gray-300 text-sm space-y-1">
+                      <div>Password: {user.password}</div>
+                      <div>Serial: {user.motherboard_serial || 'N/A'}</div>
+                      <div>Expires: {user.expiration_date}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            // Desktop view - table based
+            <div className="rounded-md border border-gray-800 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-[#0a0a0a]">
+                  <TableRow className="hover:bg-[#0a0a0a] border-gray-800">
+                    <TableHead className="text-gray-300">Username</TableHead>
+                    <TableHead className="text-gray-300">Password</TableHead>
+                    <TableHead className="text-gray-300">Motherboard Serial</TableHead>
+                    <TableHead className="text-gray-300">Expiration Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow className="hover:bg-[#151515] border-gray-800">
+                      <TableCell colSpan={4} className="text-center py-10 text-gray-400">
+                        {emuUsers.length === 0 ? 
+                          "No users found. Configure GitHub and fetch users to get started." : 
+                          "No users match your search criteria."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user, index) => (
+                      <TableRow key={index} className="hover:bg-[#151515] border-gray-800">
+                        <TableCell className="font-medium text-white">{user.username}</TableCell>
+                        <TableCell className="text-white">{user.password}</TableCell>
+                        <TableCell className="text-white">{user.motherboard_serial || 'N/A'}</TableCell>
+                        <TableCell className="text-white">{user.expiration_date}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
