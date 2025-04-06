@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -168,10 +169,11 @@ const UserPortalSettings = () => {
       }
 
       // 2. Then update web_login_regz with the portal settings
+      // Cast the portalSettings to Json type expected by Supabase
       const { error: updateError } = await supabase
         .from('web_login_regz')
         .update({
-          portal_settings: portalSettings
+          portal_settings: portalSettings as unknown as Json
         })
         .eq('username', user.username);
 
