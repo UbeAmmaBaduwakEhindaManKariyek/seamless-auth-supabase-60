@@ -221,14 +221,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Create new user
+      // Create new user - Using a valid subscription_type from the allowed list
       const { error: insertError } = await projectSupabase
         .from('web_login_regz')
         .insert({
           username: credentials.username,
           email: credentials.email,
           password: credentials.password,
-          subscription_type: 'user',
+          subscription_type: 'user', // Using 'user' as a valid subscription type
           supabase_url: credentials.supabaseUrl,
           supabase_api_key: credentials.supabaseKey
         });
