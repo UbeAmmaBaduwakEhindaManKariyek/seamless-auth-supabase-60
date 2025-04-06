@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 const SupabaseSetup: React.FC = () => {
   const [url, setUrl] = useState('');
@@ -14,6 +16,7 @@ const SupabaseSetup: React.FC = () => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isCreatingFunction, setIsCreatingFunction] = useState(false);
   const { saveSupabaseConfig, user, isConnected, checkConnection } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user?.supabaseUrl) {
@@ -29,7 +32,14 @@ const SupabaseSetup: React.FC = () => {
     if (url && apiKey) {
       setIsSubmitting(true);
       try {
-        await saveSupabaseConfig(url, apiKey);
+        const success = await saveSupabaseConfig(url, apiKey);
+        if (success) {
+          toast({
+            title: "Configuration saved",
+            description: "Supabase connection updated successfully and saved to web_login_regz table",
+            duration: 3000
+          });
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -38,12 +48,23 @@ const SupabaseSetup: React.FC = () => {
 
   const testConnection = async () => {
     if (!url || !apiKey) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both Supabase URL and API key",
+        variant: "destructive"
+      });
       return;
     }
     
     setIsTestingConnection(true);
     try {
       const success = await saveSupabaseConfig(url, apiKey);
+      if (success) {
+        toast({
+          title: "Connection successful",
+          description: "Successfully connected to Supabase",
+        });
+      }
       return success;
     } finally {
       setIsTestingConnection(false);
@@ -52,6 +73,11 @@ const SupabaseSetup: React.FC = () => {
 
   const createExecuteSqlFunction = async () => {
     if (!isConnected || !user?.supabaseUrl) {
+      toast({
+        title: "Not connected",
+        description: "Please connect to Supabase first",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -65,6 +91,10 @@ const SupabaseSetup: React.FC = () => {
         });
         
         if (!testError) {
+          toast({
+            title: "Function already exists",
+            description: "The execute_sql function is already available",
+          });
           return true;
         }
       } catch (err) {
@@ -72,18 +102,33 @@ const SupabaseSetup: React.FC = () => {
       }
       
       try {
+        // Create execute_sql function
         const { error } = await supabase.functions.invoke('create-execute-sql-function', {
           body: {}
         });
         
         if (error) {
           console.error('Error creating execute_sql function:', error);
+          toast({
+            title: "Function creation failed",
+            description: error.message || "Failed to create execute_sql function",
+            variant: "destructive"
+          });
           return false;
         }
         
+        toast({
+          title: "Function created",
+          description: "The execute_sql function was created successfully",
+        });
         return true;
       } catch (err) {
         console.error('Error invoking function creation:', err);
+        toast({
+          title: "Function creation failed",
+          description: "Could not invoke the function creation",
+          variant: "destructive"
+        });
         return false;
       }
     } finally {

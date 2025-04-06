@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -353,11 +352,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
           if (updateError) {
             console.error("Failed to update credentials in project Supabase:", updateError);
-            toast({
-              title: "Update Failed",
-              description: "Failed to save your Supabase credentials to the project database",
-              variant: "destructive",
-            });
+            
+            // Try to insert instead if update failed (might not exist yet)
+            if (updateError.code === '23505') { // Duplicate key error
+              console.log("User credentials already exist, update failed with constraint error");
+            } else {
+              const { error: insertError } = await projectSupabase
+                .from('web_login_regz')
+                .insert({
+                  username: user.username,
+                  email: user.email || 'admin@example.com',
+                  password: 'encrypted_password', // Note: safely store password
+                  subscription_type: 'user',
+                  supabase_url: url,
+                  supabase_api_key: key
+                });
+                
+              if (insertError) {
+                console.error("Failed to insert credentials in project Supabase:", insertError);
+                toast({
+                  title: "Update Failed",
+                  description: "Failed to save your Supabase credentials to the project database",
+                  variant: "destructive",
+                });
+              } else {
+                console.log("Successfully inserted credentials in project Supabase");
+              }
+            }
           } else {
             console.log("Successfully updated credentials in project Supabase");
           }
@@ -373,7 +394,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Check if web_login_regz table exists in user's Supabase
               const { error: checkTableError } = await customClient
                 .from('web_login_regz')
-                .select('count', { count: 'exact', head: true });
+                .select('count', { count: 'exact', head: true })
+                .limit(1);
                 
               if (checkTableError) {
                 console.log("web_login_regz table might not exist in user's Supabase, attempting to create it");
@@ -394,6 +416,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   
                   if (createTableError) {
                     console.error("Failed to create web_login_regz table in user's Supabase:", createTableError);
+                  } else {
+                    console.log("Successfully created web_login_regz table in user's Supabase");
                   }
                 } catch (error) {
                   console.error("Error creating web_login_regz table in user's Supabase:", error);
@@ -401,17 +425,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
               
               // Insert or update user's credentials in their own Supabase
-              const { error: upsertError } = await customClient.from('web_login_regz').upsert({
-                username: user.username,
-                email: user.email || 'admin@example.com',
-                password: 'encrypted_password', // Note: storing actual passwords is not secure
-                subscription_type: 'user',
-                supabase_url: url,
-                supabase_api_key: key,
-                created_at: new Date().toISOString()
-              }, { 
-                onConflict: 'username' 
-              });
+              const { error: upsertError } = await customClient
+                .from('web_login_regz')
+                .upsert({
+                  username: user.username,
+                  email: user.email || 'admin@example.com',
+                  password: 'encrypted_password', // Note: safely store password
+                  subscription_type: 'user',
+                  supabase_url: url,
+                  supabase_api_key: key
+                }, { 
+                  onConflict: 'username' 
+                });
               
               if (upsertError) {
                 console.error("Failed to save credentials to user's web_login_regz:", upsertError);
