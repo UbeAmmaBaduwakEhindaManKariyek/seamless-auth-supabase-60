@@ -1,8 +1,19 @@
-
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+
+interface PortalSettings {
+  enabled: boolean;
+  custom_path: string;
+  download_url?: string;
+  application_name?: string;
+}
+
+interface WebLoginRegz {
+  username: string;
+  portal_settings: PortalSettings;
+}
 
 const NotFound = () => {
   const location = useLocation();

@@ -19,6 +19,20 @@ interface UserPortalConfig {
   username?: string;
 }
 
+// Define the web_login_regz table structure to satisfy TypeScript
+interface WebLoginRegz {
+  id: number;
+  username: string;
+  password: string;
+  email: string;
+  subscription_type: string;
+  created_at: string;
+  supabase_url: string | null;
+  supabase_api_key: string | null;
+  license_key: string | null;
+  portal_settings: UserPortalConfig | null;
+}
+
 const UserPortalSettings = () => {
   const { toast } = useToast();
   const { user, isConnected } = useAuth();

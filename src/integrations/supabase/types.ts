@@ -672,7 +672,9 @@ export type Database = {
           created_at: string
           email: string
           id: number
+          license_key: string | null
           password: string
+          portal_settings: Json | null
           subscription_type: string
           supabase_api_key: string | null
           supabase_url: string | null
@@ -682,7 +684,9 @@ export type Database = {
           created_at?: string
           email: string
           id?: number
+          license_key?: string | null
           password: string
+          portal_settings?: Json | null
           subscription_type: string
           supabase_api_key?: string | null
           supabase_url?: string | null
@@ -692,7 +696,9 @@ export type Database = {
           created_at?: string
           email?: string
           id?: number
+          license_key?: string | null
           password?: string
+          portal_settings?: Json | null
           subscription_type?: string
           supabase_api_key?: string | null
           supabase_url?: string | null

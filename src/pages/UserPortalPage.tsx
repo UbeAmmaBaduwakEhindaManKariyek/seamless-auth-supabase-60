@@ -1,33 +1,47 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowDown, KeyRound, Download, AlertCircle, LogIn, UserPlus } from 'lucide-react';
 
+interface PortalSettings {
+  enabled: boolean;
+  custom_path: string;
+  download_url?: string;
+  application_name?: string;
+}
+
+interface PortalConfig {
+  id?: number;
+  username: string;
+  enabled: boolean;
+  custom_path: string;
+  download_url?: string;
+  application_name?: string;
+  created_at?: string;
+}
+
 const UserPortalPage = () => {
   const { username: ownerUsername, custom_path } = useParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [portalConfig, setPortalConfig] = useState<any>(null);
+  const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Auth form state
   const [authForm, setAuthForm] = useState({
     username: '',
     password: '',
     license_key: '',
   });
   
-  // Reset HWID form state
   const [resetForm, setResetForm] = useState({
     username: '',
     license_key: '',
@@ -45,7 +59,6 @@ const UserPortalPage = () => {
     }
 
     try {
-      // First try to get portal config from user_portal_config table
       const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
         .select('*')
@@ -60,7 +73,6 @@ const UserPortalPage = () => {
         return;
       }
       
-      // If not found in user_portal_config, check web_login_regz
       const { data: userData, error: userError } = await supabase
         .from('web_login_regz')
         .select('username, portal_settings')
@@ -70,7 +82,6 @@ const UserPortalPage = () => {
       if (userData?.portal_settings?.custom_path === custom_path && 
           userData?.portal_settings?.enabled === true) {
         
-        // Format the portal config from web_login_regz data
         setPortalConfig({
           ...userData.portal_settings,
           username: userData.username
@@ -107,7 +118,6 @@ const UserPortalPage = () => {
     setLoading(true);
     
     try {
-      // Check users table for credentials
       const { data: userData, error: userError } = await (supabase as any)
         .from('users')
         .select('*')
@@ -121,7 +131,6 @@ const UserPortalPage = () => {
         return;
       }
         
-      // Update last login time in user_portal_auth if exists or create
       const { data: existingAuth } = await (supabase as any)
         .from('user_portal_auth')
         .select('id')
@@ -143,10 +152,8 @@ const UserPortalPage = () => {
           });
       }
       
-      // Set authenticated state
       setIsAuthenticated(true);
       
-      // Set reset form with the authenticated username
       setResetForm(prev => ({
         ...prev,
         username: authForm.username,
@@ -177,7 +184,6 @@ const UserPortalPage = () => {
     setLoading(true);
     
     try {
-      // Check if username already exists in users table
       const { data: existingUser, error: checkUserError } = await (supabase as any)
         .from('users')
         .select('username')
@@ -190,7 +196,6 @@ const UserPortalPage = () => {
         return;
       }
       
-      // Verify license key exists in license_keys table
       const { data: licenseData, error: licenseError } = await (supabase as any)
         .from('license_keys')
         .select('*')
@@ -203,7 +208,6 @@ const UserPortalPage = () => {
         return;
       }
       
-      // Create new user in users table
       const { error: registerError } = await (supabase as any)
         .from('users')
         .insert({
@@ -225,7 +229,6 @@ const UserPortalPage = () => {
         throw registerError;
       }
       
-      // Create entry in portal auth table
       await (supabase as any)
         .from('user_portal_auth')
         .insert({
@@ -234,10 +237,8 @@ const UserPortalPage = () => {
           license_key: authForm.license_key,
         });
       
-      // Set authenticated state
       setIsAuthenticated(true);
       
-      // Set reset form with the registered username
       setResetForm(prev => ({
         ...prev,
         username: authForm.username,
@@ -269,7 +270,6 @@ const UserPortalPage = () => {
     try {
       setLoading(true);
       
-      // Reset HWID for both users and license_keys table
       const { error: userUpdateError } = await (supabase as any)
         .from('users')
         .update({ hwid: [] })
@@ -349,7 +349,6 @@ const UserPortalPage = () => {
     );
   }
   
-  // Portal Title - Use application name if in configuration, otherwise use a default
   const portalTitle = portalConfig?.application_name || "Application Portal";
 
   return (
