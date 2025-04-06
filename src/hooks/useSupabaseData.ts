@@ -140,19 +140,21 @@ export async function saveSupabaseData<T extends object>(
   try {
     const supabase = getActiveClient();
     let query = supabase.from(tableName).insert(data);
+    let finalQuery = query;
 
     // Handle conflict option
     if (options.onConflict) {
       // Type assertion needed here
-      query = (query as any).onConflict(options.onConflict);
+      const queryWithConflict = (query as any).onConflict(options.onConflict);
+      finalQuery = queryWithConflict;
     }
 
     // Handle returning option
     if (options.returning) {
-      query = query.select(options.returning);
+      finalQuery = finalQuery.select(options.returning);
     }
 
-    const { data: responseData, error } = await query;
+    const { data: responseData, error } = await finalQuery;
 
     if (error) {
       throw new Error(`Failed to save data to ${tableName}: ${error.message}`);
@@ -186,13 +188,15 @@ export async function updateSupabaseData<T extends object>(
       .from(tableName)
       .update(updates)
       .eq(matchColumn, matchValue);
+    
+    let finalQuery = query;
 
     // Handle returning option
     if (options.returning) {
-      query = query.select(options.returning);
+      finalQuery = finalQuery.select(options.returning);
     }
 
-    const { data: responseData, error } = await query;
+    const { data: responseData, error } = await finalQuery;
 
     if (error) {
       throw new Error(`Failed to update data in ${tableName}: ${error.message}`);
