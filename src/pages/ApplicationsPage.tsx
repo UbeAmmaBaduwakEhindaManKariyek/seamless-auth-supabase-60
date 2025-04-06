@@ -9,7 +9,7 @@ import { Filter, Plus, Search, Loader2 } from 'lucide-react';
 import CreateAppModal from '@/components/applications/CreateAppModal';
 import ApplicationCredentials from '@/components/applications/ApplicationCredentials';
 import { useAuth } from '@/contexts/AuthContext';
-import { getActiveClient, fromTable } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable, callRpc } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Application } from '@/types/applications';
 
@@ -64,7 +64,7 @@ const ApplicationsPage: React.FC = () => {
       
       // If direct access fails, try using SQL
       try {
-        const { data, error } = await (supabase.rpc as any)('execute_sql', {
+        const { data, error } = await callRpc('execute_sql', {
           sql_query: `
             SELECT * FROM applications_registry 
             ORDER BY created_at DESC
@@ -121,9 +121,7 @@ const ApplicationsPage: React.FC = () => {
   
   const toggleAppStatus = async (appId: number, currentStatus: boolean) => {
     try {
-      const supabase = getActiveClient();
-      const { error } = await supabase
-        .from('applications_registry')
+      const { error } = await fromTable('applications_registry')
         .update({ is_active: !currentStatus })
         .eq('id', appId);
         

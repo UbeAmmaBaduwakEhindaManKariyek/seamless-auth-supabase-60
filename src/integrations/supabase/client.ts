@@ -47,8 +47,7 @@ export function getActiveClient() {
 export async function executeRawSql(sqlQuery: string) {
   try {
     const client = getActiveClient();
-    // Safe type assertion for RPC calls
-    return await (client as any).rpc('execute_sql', { sql_query: sqlQuery });
+    return await callRpc('execute_sql', { sql_query: sqlQuery });
   } catch (error) {
     console.error('Error executing raw SQL:', error);
     return { error };

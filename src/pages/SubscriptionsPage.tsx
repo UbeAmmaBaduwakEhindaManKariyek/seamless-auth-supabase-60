@@ -135,7 +135,6 @@ const SubscriptionsPage: React.FC = () => {
     setIsLoading(true);
     try {
       if (isConnected) {
-        const client = getActiveClient();
         const { data, error } = await fromTable('subscription_types')
           .insert({
             name: newSubscription.name,
@@ -218,9 +217,7 @@ const SubscriptionsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const client = getActiveClient();
-      const { error } = await client
-        .from('subscription_types')
+      const { error } = await fromTable('subscription_types')
         .delete()
         .neq('id', '0'); // Delete all records
       
