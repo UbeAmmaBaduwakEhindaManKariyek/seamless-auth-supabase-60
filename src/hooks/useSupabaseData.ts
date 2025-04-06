@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getActiveClient, createCustomClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { PostgrestError } from '@supabase/supabase-js';
 
 /**
  * Custom hook for fetching data from Supabase tables
@@ -104,7 +105,8 @@ export function useSupabaseData<T extends object>(
           throw new Error(`Failed to fetch data from ${tableName}: ${error.message}`);
         }
 
-        setData(queryData as T[]);
+        // Fix the type conversion issue by using type assertion
+        setData(queryData as unknown as T[]);
       } catch (err) {
         console.error(`Error fetching data from ${tableName}:`, err);
         setError(err instanceof Error ? err : new Error('Unknown error'));
@@ -139,10 +141,13 @@ export async function saveSupabaseData<T extends object>(
     const supabase = getActiveClient();
     let query = supabase.from(tableName).insert(data);
 
+    // Handle conflict option
     if (options.onConflict) {
-      query = query.onConflict(options.onConflict);
+      // Type assertion needed here
+      query = (query as any).onConflict(options.onConflict);
     }
 
+    // Handle returning option
     if (options.returning) {
       query = query.select(options.returning);
     }
@@ -182,6 +187,7 @@ export async function updateSupabaseData<T extends object>(
       .update(updates)
       .eq(matchColumn, matchValue);
 
+    // Handle returning option
     if (options.returning) {
       query = query.select(options.returning);
     }

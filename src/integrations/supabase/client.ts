@@ -38,6 +38,35 @@ export const getActiveClient = () => {
 };
 
 /**
+ * Test the connection to Supabase
+ */
+export const testConnection = async (client = activeClient) => {
+  try {
+    // Attempt a simple query to check if the connection works
+    const { data, error } = await client
+      .from('users')
+      .select('count', { count: 'exact', head: true });
+    
+    if (error) {
+      // If users table doesn't exist, try another common table
+      const { error: error2 } = await client
+        .from('applications_registry')
+        .select('count', { count: 'exact', head: true });
+      
+      if (error2) {
+        console.warn('Connection test failed:', error2);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Connection test error:', err);
+    return false;
+  }
+};
+
+/**
  * Execute raw SQL using different methods, with fallbacks
  */
 export const executeRawSql = async (sql: string) => {
