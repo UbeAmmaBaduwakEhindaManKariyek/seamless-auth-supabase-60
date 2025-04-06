@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
+      // Using type assertion to bypass typechecking for the dynamic table name
       const { data, error } = await (supabase as any)
         .from('user_portal_config')
         .select('*')
@@ -102,11 +104,13 @@ const UserPortalSettings = () => {
       let response;
       
       if (portalConfig.id) {
+        // Using type assertion to bypass typechecking for the dynamic table name
         response = await (supabase as any)
           .from('user_portal_config')
           .update(portalData)
           .eq('id', portalConfig.id);
       } else {
+        // Using type assertion to bypass typechecking for the dynamic table name
         response = await (supabase as any)
           .from('user_portal_config')
           .insert(portalData);

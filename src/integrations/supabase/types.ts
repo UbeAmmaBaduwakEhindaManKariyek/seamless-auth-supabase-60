@@ -518,6 +518,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_portal_config: {
+        Row: {
+          created_at: string | null
+          custom_path: string
+          download_url: string | null
+          enabled: boolean | null
+          id: number
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          custom_path: string
+          download_url?: string | null
+          enabled?: boolean | null
+          id?: number
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          custom_path?: string
+          download_url?: string | null
+          enabled?: boolean | null
+          id?: number
+          username?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           admin_approval: boolean | null
@@ -619,6 +646,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      execute_sql: {
+        Args: {
+          sql_query: string
+        }
+        Returns: Json
+      }
       generate_random_license_key: {
         Args: Record<PropertyKey, never>
         Returns: string

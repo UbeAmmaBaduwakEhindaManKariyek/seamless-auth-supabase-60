@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
+        // Using executeRawSql function to bypass type checking
         const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }
@@ -104,6 +106,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
+        // Using executeRawSql function to bypass type checking
         const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }
@@ -137,6 +140,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
+        // Using executeRawSql function to bypass type checking
         const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }

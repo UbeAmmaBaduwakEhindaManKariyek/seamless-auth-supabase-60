@@ -36,7 +36,7 @@ export const getActiveClient = (): SupabaseClient => {
 export const executeRawSql = async (sqlQuery: string): Promise<{ data: any; error: any }> => {
   try {
     // Using any to bypass type checking for the RPC function
-    const { data, error } = await activeClient.rpc('execute_sql', { sql_query: sqlQuery });
+    const { data, error } = await (activeClient as any).rpc('execute_sql', { sql_query: sqlQuery });
     
     if (error && error.message?.includes('Could not find the function')) {
       return { 
@@ -60,14 +60,14 @@ export const executeRawSql = async (sqlQuery: string): Promise<{ data: any; erro
  */
 export const testConnection = async (client: SupabaseClient): Promise<boolean> => {
   try {
-    const { error } = await client.from('users').select('count', { count: 'exact', head: true });
+    const { error } = await (client as any).from('users').select('count', { count: 'exact', head: true });
     
     if (!error) {
       return true;
     }
     
     // Try another table if the first one doesn't exist
-    const { error: secondError } = await client.from('web_login_regz').select('count', { count: 'exact', head: true });
+    const { error: secondError } = await (client as any).from('web_login_regz').select('count', { count: 'exact', head: true });
     
     return !secondError;
   } catch (err) {
