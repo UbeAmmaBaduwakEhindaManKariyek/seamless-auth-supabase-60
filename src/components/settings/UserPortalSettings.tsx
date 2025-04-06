@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { PortalSettings, WebLoginRegz } from '@/types/auth';
+import { Json } from '@/integrations/supabase/types';
 
 interface UserPortalConfig {
   id?: number;
