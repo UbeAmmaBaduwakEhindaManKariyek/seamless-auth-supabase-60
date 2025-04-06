@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,11 @@ interface ApiKey {
   description: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+interface SqlQueryResult {
+  rows: Array<any>;
+  [key: string]: any;
 }
 
 const ApiKeyManagement: React.FC = () => {
@@ -58,7 +62,7 @@ const ApiKeyManagement: React.FC = () => {
 
       // Fall back to using the SQL execution function
       try {
-        const { error: tableCheckError } = await supabase.rpc('execute_sql', {
+        const { error: tableCheckError } = await (supabase.rpc as any)('execute_sql', {
           sql_query: `
             SELECT COUNT(*) FROM information_schema.tables 
             WHERE table_schema = 'public' AND table_name = 'app_authentication_keys'
@@ -75,7 +79,7 @@ const ApiKeyManagement: React.FC = () => {
           return;
         }
 
-        const { data, error } = await supabase.rpc('execute_sql', {
+        const { data, error } = await (supabase.rpc as any)('execute_sql', {
           sql_query: `
             SELECT id, name, key, description, is_active, created_at 
             FROM app_authentication_keys 
@@ -96,8 +100,8 @@ const ApiKeyManagement: React.FC = () => {
           setApiKeys([]);
         } else {
           // Parse the rows from the result
-          if (data && data.length > 0 && data[0].rows) {
-            const keys: ApiKey[] = data[0].rows.map((row: any) => ({
+          if (data && Array.isArray(data) && data.length > 0 && (data[0] as SqlQueryResult).rows) {
+            const keys: ApiKey[] = (data[0] as SqlQueryResult).rows.map((row: any) => ({
               id: row.id,
               name: row.name,
               key: row.key,
@@ -209,7 +213,7 @@ const ApiKeyManagement: React.FC = () => {
           throw error;
         }
       } else {
-        const { error } = await supabase.rpc('execute_sql', {
+        const { error } = await (supabase.rpc as any)('execute_sql', {
           sql_query: `DELETE FROM app_authentication_keys WHERE id = '${id}'`
         });
 
@@ -247,7 +251,7 @@ const ApiKeyManagement: React.FC = () => {
           throw error;
         }
       } else {
-        const { error } = await supabase.rpc('execute_sql', {
+        const { error } = await (supabase.rpc as any)('execute_sql', {
           sql_query: `
             UPDATE app_authentication_keys 
             SET is_active = ${!currentStatus} 

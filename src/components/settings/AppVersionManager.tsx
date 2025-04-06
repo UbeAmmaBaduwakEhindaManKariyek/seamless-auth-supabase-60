@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +12,11 @@ interface AppVersion {
   id: number;
   version: string;
   created_at: string;
+}
+
+interface SqlQueryResult {
+  rows: Array<any>;
+  [key: string]: any;
 }
 
 const AppVersionManager: React.FC = () => {
@@ -61,7 +65,7 @@ const AppVersionManager: React.FC = () => {
         // Fall back to using the SQL execution function
         try {
           // First, check if the table exists
-          const { error: tableCheckError } = await supabase.rpc('execute_sql', {
+          const { error: tableCheckError } = await (supabase.rpc as any)('execute_sql', {
             sql_query: `
               SELECT COUNT(*) FROM information_schema.tables 
               WHERE table_schema = 'public' AND table_name = 'app_version'
@@ -75,7 +79,7 @@ const AppVersionManager: React.FC = () => {
             }
             
             // Table likely doesn't exist, create it
-            await supabase.rpc('execute_sql', {
+            await (supabase.rpc as any)('execute_sql', {
               sql_query: `
                 CREATE TABLE IF NOT EXISTS app_version (
                   id SERIAL PRIMARY KEY,
@@ -86,12 +90,12 @@ const AppVersionManager: React.FC = () => {
             });
             
             // Insert initial version
-            await supabase.rpc('execute_sql', {
+            await (supabase.rpc as any)('execute_sql', {
               sql_query: `INSERT INTO app_version (version) VALUES ('1.0.0')`
             });
           }
           
-          const { data, error } = await supabase.rpc('execute_sql', {
+          const { data, error } = await (supabase.rpc as any)('execute_sql', {
             sql_query: `
               SELECT * FROM app_version 
               ORDER BY created_at DESC
@@ -106,8 +110,8 @@ const AppVersionManager: React.FC = () => {
             throw error;
           }
           
-          if (data && data.length > 0 && data[0].rows) {
-            const versionData = data[0].rows.map((row: any) => ({
+          if (data && Array.isArray(data) && data.length > 0 && (data[0] as SqlQueryResult).rows) {
+            const versionData = (data[0] as SqlQueryResult).rows.map((row: any) => ({
               id: row.id,
               version: row.version,
               created_at: row.created_at
@@ -117,7 +121,7 @@ const AppVersionManager: React.FC = () => {
             setNewVersion(versionData[0].version);
           } else {
             // If no versions exist, create an initial one
-            const { data: newData, error: insertError } = await supabase.rpc('execute_sql', {
+            const { data: newData, error: insertError } = await (supabase.rpc as any)('execute_sql', {
               sql_query: `
                 INSERT INTO app_version (version) VALUES ('1.0.0') 
                 RETURNING id, version, created_at
@@ -126,11 +130,11 @@ const AppVersionManager: React.FC = () => {
               
             if (insertError) throw insertError;
             
-            if (newData && newData.length > 0 && newData[0].rows) {
+            if (newData && Array.isArray(newData) && newData.length > 0 && (newData[0] as SqlQueryResult).rows) {
               const initialVersion = {
-                id: newData[0].rows[0].id,
-                version: newData[0].rows[0].version,
-                created_at: newData[0].rows[0].created_at
+                id: (newData[0] as SqlQueryResult).rows[0].id,
+                version: (newData[0] as SqlQueryResult).rows[0].version,
+                created_at: (newData[0] as SqlQueryResult).rows[0].created_at
               };
               setVersions([initialVersion]);
               setCurrentVersion(initialVersion);
@@ -227,7 +231,7 @@ const AppVersionManager: React.FC = () => {
         setCurrentVersion(data);
       } else {
         // Use SQL execution function
-        const { data, error } = await supabase.rpc('execute_sql', {
+        const { data, error } = await (supabase.rpc as any)('execute_sql', {
           sql_query: `
             INSERT INTO app_version (version) 
             VALUES ('${newVersion.trim()}') 
@@ -252,11 +256,11 @@ const AppVersionManager: React.FC = () => {
           } else {
             throw error;
           }
-        } else if (data && data.length > 0 && data[0].rows) {
+        } else if (data && Array.isArray(data) && data.length > 0 && (data[0] as SqlQueryResult).rows) {
           const newVersionData = {
-            id: data[0].rows[0].id,
-            version: data[0].rows[0].version,
-            created_at: data[0].rows[0].created_at
+            id: (data[0] as SqlQueryResult).rows[0].id,
+            version: (data[0] as SqlQueryResult).rows[0].version,
+            created_at: (data[0] as SqlQueryResult).rows[0].created_at
           };
           setVersions([newVersionData, ...versions]);
           setCurrentVersion(newVersionData);

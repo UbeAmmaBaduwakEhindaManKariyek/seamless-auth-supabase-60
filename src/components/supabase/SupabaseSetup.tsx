@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +15,6 @@ const SupabaseSetup: React.FC = () => {
   const [isCreatingFunction, setIsCreatingFunction] = useState(false);
   const { saveSupabaseConfig, user, isConnected, checkConnection } = useAuth();
 
-  // Initialize with saved values if available
   useEffect(() => {
     if (user?.supabaseUrl) {
       setUrl(user.supabaseUrl);
@@ -62,22 +60,18 @@ const SupabaseSetup: React.FC = () => {
       const supabase = getActiveClient();
       
       try {
-        // Check if function already exists
-        const { data: testData, error: testError } = await supabase.rpc('execute_sql', {
+        const { data: testData, error: testError } = await (supabase.rpc as any)('execute_sql', {
           sql_query: 'SELECT 1'
         });
         
         if (!testError) {
-          // Function exists and works
           return true;
         }
       } catch (err) {
         console.log('Function check failed, trying to create it');
       }
       
-      // Function doesn't exist or isn't working, try creating it
       try {
-        // Use raw SQL through REST API
         const { error } = await supabase.functions.invoke('create-execute-sql-function', {
           body: {}
         });
