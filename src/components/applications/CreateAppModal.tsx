@@ -7,11 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { Application } from '@/types/applications';
 
 interface CreateAppModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (name: string, version: string) => void;
+  onCreate: (newApp: Application) => void;
   isCreating: boolean;
 }
 
@@ -75,8 +76,54 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
       return;
     }
     
-    // Submit
-    onCreate(name, version);
+    // Generate a random app secret
+    const appSecret = generateRandomAppSecret();
+    
+    // Create a new application record
+    createApplication(name, version, appSecret);
+  };
+  
+  const generateRandomAppSecret = () => {
+    return Array.from(
+      { length: 32 },
+      () => Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+  };
+  
+  const createApplication = async (name: string, version: string, appSecret: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('applications_registry')
+        .insert({
+          name,
+          version,
+          app_secret: appSecret,
+          owner_id: Math.random().toString(36).slice(2, 12), // Generate a random owner ID for demo
+          is_active: true
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Call the onCreate callback with the new application
+      onCreate(data as Application);
+      
+      // Reset form fields
+      setName('');
+      setVersion('1.0');
+      setErrors({});
+      
+    } catch (err) {
+      console.error("Error creating application:", err);
+      toast({
+        title: "Error",
+        description: "Failed to create application. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleClose = () => {

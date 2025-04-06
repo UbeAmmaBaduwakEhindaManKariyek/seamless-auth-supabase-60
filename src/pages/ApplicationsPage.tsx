@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,15 +11,10 @@ import ApplicationCredentials from '@/components/applications/ApplicationCredent
 import { useAuth } from '@/contexts/AuthContext';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { Application } from '@/types/applications';
 
-interface Application {
-  id: string;
-  name: string;
-  app_secret: string;
-  version: string;
-  is_active: boolean;
-  created_at: string;
-  owner_id: string;
+interface SqlQueryResult {
+  rows: any[];
 }
 
 interface SearchConfig {
@@ -82,8 +76,8 @@ const ApplicationsPage: React.FC = () => {
           throw error;
         }
         
-        if (data && data.length > 0 && data[0].rows) {
-          setApplications(data[0].rows as Application[]);
+        if (data && data.length > 0 && (data[0] as SqlQueryResult).rows) {
+          setApplications((data[0] as SqlQueryResult).rows as Application[]);
         } else {
           setApplications([]);
         }
@@ -126,7 +120,7 @@ const ApplicationsPage: React.FC = () => {
     setFilteredApps(filtered);
   };
   
-  const toggleAppStatus = async (appId: string, currentStatus: boolean) => {
+  const toggleAppStatus = async (appId: number, currentStatus: boolean) => {
     try {
       const supabase = getActiveClient();
       const { error } = await supabase
@@ -249,7 +243,7 @@ const ApplicationsPage: React.FC = () => {
                       <td className="p-3 text-white">{app.name}</td>
                       <td className="p-3 text-gray-300">{app.version}</td>
                       <td className="p-3 text-gray-400">
-                        {new Date(app.created_at).toLocaleDateString()}
+                        {app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="p-3">
                         <span 
@@ -297,15 +291,15 @@ const ApplicationsPage: React.FC = () => {
       </Card>
       
       <CreateAppModal 
-        isOpen={isCreateModalOpen} 
+        open={isCreateModalOpen} 
         onClose={() => setIsCreateModalOpen(false)}
-        onAppCreated={handleAppCreated}
+        onCreate={handleAppCreated}
+        isCreating={false}
       />
       
       {selectedApp && (
         <ApplicationCredentials
           application={selectedApp}
-          onClose={handleCredentialsDialogClosed}
         />
       )}
     </div>

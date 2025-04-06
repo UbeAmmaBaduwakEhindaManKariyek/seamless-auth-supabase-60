@@ -8,9 +8,10 @@ import { Application } from '@/types/applications';
 
 interface ApplicationCredentialsProps {
   application: Application;
+  onClose?: () => void;
 }
 
-const ApplicationCredentials: React.FC<ApplicationCredentialsProps> = ({ application }) => {
+const ApplicationCredentials: React.FC<ApplicationCredentialsProps> = ({ application, onClose }) => {
   const [activeLanguage, setActiveLanguage] = useState<string>('JavaScript');
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
