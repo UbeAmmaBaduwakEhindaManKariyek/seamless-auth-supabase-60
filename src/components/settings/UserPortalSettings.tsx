@@ -14,6 +14,7 @@ interface UserPortalConfig {
   enabled: boolean;
   custom_path: string;
   download_url: string;
+  application_name?: string;
   created_at?: string;
   username?: string;
 }
@@ -25,6 +26,7 @@ const UserPortalSettings = () => {
     enabled: false,
     custom_path: '',
     download_url: '',
+    application_name: '',
   });
   const [loading, setLoading] = useState(false);
   const [portalUrl, setPortalUrl] = useState<string>('');
@@ -66,6 +68,7 @@ const UserPortalSettings = () => {
           enabled: data.enabled,
           custom_path: data.custom_path,
           download_url: data.download_url || '',
+          application_name: data.application_name || '',
           created_at: data.created_at,
           username: data.username
         });
@@ -99,6 +102,7 @@ const UserPortalSettings = () => {
         enabled: portalConfig.enabled,
         custom_path: portalConfig.custom_path.trim(),
         download_url: portalConfig.download_url.trim(),
+        application_name: portalConfig.application_name?.trim() || '',
       };
 
       let response;
@@ -162,6 +166,21 @@ const UserPortalSettings = () => {
 
         <div className="space-y-4">
           <div>
+            <Label htmlFor="app-name" className="text-white">Application Name</Label>
+            <p className="text-sm text-gray-400 mb-2">
+              This will be displayed as the title on your portal page
+            </p>
+            <Input
+              id="app-name"
+              placeholder="My Application"
+              value={portalConfig.application_name || ''}
+              onChange={(e) => setPortalConfig(prev => ({ ...prev, application_name: e.target.value }))}
+              disabled={loading}
+              className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+            />
+          </div>
+
+          <div>
             <Label htmlFor="custom-path" className="text-white">Custom Path</Label>
             <p className="text-sm text-gray-400 mb-2">
               Choose a unique identifier for your portal URL
@@ -199,7 +218,7 @@ const UserPortalSettings = () => {
             </p>
             <p className="text-sm text-blue-400 break-all">{portalUrl}</p>
             <p className="text-xs text-gray-400 mt-2">
-              Users will be able to reset HWID and download your application from this URL
+              Users can register, login, reset HWID, and download your application from this URL
             </p>
           </div>
         )}
