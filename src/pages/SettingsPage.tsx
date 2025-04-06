@@ -19,7 +19,17 @@ const SettingsPage = () => {
         
         {isConnected && (
           <>
-            <InstallTables />
+            <Card className="bg-[#101010] border-[#2a2a2a]">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold text-white">Supabase Database Setup</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Install and manage all required tables in your Supabase database
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <InstallTables />
+              </CardContent>
+            </Card>
             <AppVersionManager />
             <ApiKeyManagement />
           </>

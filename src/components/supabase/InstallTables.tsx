@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { getActiveClient, executeRawSql } from '@/integrations/supabase/client';
 
 const InstallTables: React.FC = () => {
   const [isInstalling, setIsInstalling] = useState(false);
@@ -26,7 +26,7 @@ const InstallTables: React.FC = () => {
       }
       
       try {
-        const supabase = createClient(user.supabaseUrl, user.supabaseKey);
+        const supabase = getActiveClient();
         
         // Try to check if users table exists (one of the main tables)
         const { data, error } = await supabase
@@ -73,193 +73,344 @@ const InstallTables: React.FC = () => {
     setError(null);
     
     try {
-      const supabase = createClient(user.supabaseUrl, user.supabaseKey);
+      // Use the active Supabase client
+      const supabase = getActiveClient();
       
       // Define the SQL statements for creating all tables
       const sqlStatements = [
+        // Generate Random Key function
         `
-        create table if not exists public.app_version (
-          id serial not null,
-          version text not null,
-          created_at timestamp without time zone null default now(),
-          constraint app_version_pkey primary key (id)
-        )
-        `,
-        `
-        create table if not exists public.application_open (
-          id serial not null,
-          username text null,
-          ip_address text null,
-          hwid text null,
-          motherboard_serial text null,
-          cpu_serial text null,
-          os_version text null,
-          ram_capacity text null,
-          graphics_card text null,
-          storage_capacity text null,
-          pc_name text null,
-          timestamp timestamp without time zone null default CURRENT_TIMESTAMP,
-          constraint application_open_pkey primary key (id)
-        )
-        `,
-        `
-        create table if not exists public.subscription_types (
-          id uuid not null default gen_random_uuid(),
-          name text not null,
-          description text null,
-          created_at timestamp with time zone not null default timezone('utc'::text, now()),
-          is_active boolean null default true,
-          price numeric null default 0,
-          constraint subscription_types_pkey primary key (id),
-          constraint subscription_types_name_key unique (name)
-        )
-        `,
-        `
-        create index if not exists idx_subscription_types_name on public.subscription_types using btree (name)
-        `,
-        `
-        create table if not exists public.users (
-          id serial not null,
-          username text not null,
-          password text not null,
-          admin_approval boolean null default false,
-          subscription text null,
-          hwid text[] null,
-          expiredate date null,
-          key text null,
-          hwid_reset_count integer null default 5,
-          mobile_number text null,
-          banned boolean null default false,
-          save_hwid boolean null default true,
-          max_devices integer null default 1,
-          constraint users_pkey primary key (id),
-          constraint users_subscription_fkey foreign key (subscription) references subscription_types (name) on delete set null
-        )
-        `,
-        `
-        create index if not exists idx_users_username on public.users using btree (username)
-        `,
-        `
-        create table if not exists public.license_keys (
-          id uuid not null default gen_random_uuid(),
-          key text not null,
-          user_id integer null,
-          created_at timestamp with time zone null default timezone('utc'::text, now()),
-          expired_at timestamp with time zone null,
-          is_active boolean null default true,
-          constraint license_keys_pkey primary key (id),
-          constraint license_keys_key_key unique (key),
-          constraint license_keys_user_id_fkey foreign key (user_id) references users (id)
-        )
-        `,
-        `
-        create index if not exists idx_license_keys_user_id on public.license_keys using btree (user_id)
-        `,
-        `
-        create index if not exists idx_license_keys_key on public.license_keys using btree (key)
-        `,
-        `
-        create table if not exists public.login_details (
-          id serial not null,
-          username text not null,
-          ip_address text null,
-          hwid text null,
-          motherboard_serial text null,
-          cpu_serial text null,
-          os_version text null,
-          ram_capacity text null,
-          graphics_card text null,
-          storage_capacity text null,
-          login_time timestamp without time zone null default now(),
-          pc_name text null,
-          constraint login_details_pkey primary key (id)
-        )
-        `,
-        `
-        create table if not exists public.login_logs (
-          id serial not null,
-          username text not null,
-          status text not null,
-          timestamp timestamp without time zone null default now(),
-          constraint login_logs_pkey primary key (id)
-        )
-        `,
-        `
-        create table if not exists public.messages (
-          id serial not null,
-          type text not null,
-          text text not null,
-          constraint messages_pkey primary key (id),
-          constraint messages_type_key unique (type)
-        )
-        `,
-        `
-        create table if not exists public.regz_cheat_status (
-          id serial not null,
-          version text not null,
-          website_url text not null,
-          account_url text not null,
-          safety_status text not null,
-          constraint regz_cheat_status_pkey primary key (id)
-        )
-        `,
-        `
-        create table if not exists public.web_login_regz (
-          id serial not null,
-          username text not null,
-          email text not null,
-          password text not null,
-          subscription_type text not null,
-          supabase_url text null,
-          supabase_api_key text null,
-          created_at timestamp with time zone not null default now(),
-          constraint web_login_regz_pkey primary key (id)
-        )
-        `,
-        `
-        create or replace function public.generate_random_key()
-        returns trigger
-        language plpgsql
-        as $function$
+        CREATE OR REPLACE FUNCTION public.generate_random_key()
+        RETURNS TRIGGER AS $$
         BEGIN
-          NEW.key := encode(gen_random_bytes(16), 'hex');
+          NEW.key := gen_random_uuid()::TEXT;
           RETURN NEW;
         END;
-        $function$
+        $$ LANGUAGE plpgsql;
         `,
+        
+        // Subscription Types table
         `
-        drop trigger if exists tr_generate_key on public.users;
-        create trigger tr_generate_key BEFORE INSERT on users for EACH row when (new.key is null)
-        execute function generate_random_key();
+        CREATE TABLE IF NOT EXISTS public.subscription_types (
+          id UUID NOT NULL DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          description TEXT NULL,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+          is_active BOOLEAN NULL DEFAULT true,
+          price NUMERIC NULL DEFAULT 0,
+          CONSTRAINT subscription_types_pkey PRIMARY KEY (id),
+          CONSTRAINT subscription_types_name_key UNIQUE (name)
+        );
+        `,
+        
+        // Create index for subscription_types
+        `CREATE INDEX IF NOT EXISTS idx_subscription_types_name ON public.subscription_types USING btree (name);`,
+        
+        // Default subscription type
+        `
+        INSERT INTO public.subscription_types (name, description, price)
+        VALUES ('default', 'Default subscription type', 0)
+        ON CONFLICT (name) DO NOTHING;
+        `,
+        
+        // Users table
+        `
+        CREATE TABLE IF NOT EXISTS public.users (
+          id SERIAL NOT NULL,
+          username TEXT NOT NULL,
+          password TEXT NOT NULL,
+          admin_approval BOOLEAN NULL DEFAULT false,
+          subscription TEXT NULL DEFAULT 'default',
+          hwid TEXT[] NULL,
+          expiredate DATE NULL,
+          key TEXT NULL,
+          hwid_reset_count INTEGER NULL DEFAULT 5,
+          mobile_number TEXT NULL,
+          banned BOOLEAN NULL DEFAULT false,
+          save_hwid BOOLEAN NULL DEFAULT true,
+          max_devices INTEGER NULL DEFAULT 1,
+          CONSTRAINT users_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Create index for users
+        `CREATE INDEX IF NOT EXISTS idx_users_username ON public.users USING btree (username);`,
+        
+        // Add trigger for generate_random_key
+        `
+        DROP TRIGGER IF EXISTS tr_generate_key ON users;
+        CREATE TRIGGER tr_generate_key 
+          BEFORE INSERT ON users 
+          FOR EACH ROW 
+          WHEN (NEW.key IS NULL)
+          EXECUTE FUNCTION generate_random_key();
+        `,
+        
+        // Add foreign key constraints after tables exist
+        `
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_subscription'
+          ) THEN
+            ALTER TABLE public.users 
+            ADD CONSTRAINT fk_user_subscription 
+            FOREIGN KEY (subscription) 
+            REFERENCES subscription_types (name);
+          END IF;
+        END $$;
+        `,
+        
+        `
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'users_subscription_fkey'
+          ) THEN
+            ALTER TABLE public.users 
+            ADD CONSTRAINT users_subscription_fkey 
+            FOREIGN KEY (subscription) 
+            REFERENCES subscription_types (name) 
+            ON DELETE SET NULL;
+          END IF;
+        END $$;
+        `,
+        
+        // Regz Cheat Status table
+        `
+        CREATE TABLE IF NOT EXISTS public.regz_cheat_status (
+          id SERIAL NOT NULL,
+          version TEXT NOT NULL,
+          website_url TEXT NOT NULL,
+          account_url TEXT NOT NULL,
+          safety_status TEXT NOT NULL,
+          CONSTRAINT regz_cheat_status_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Messages table
+        `
+        CREATE TABLE IF NOT EXISTS public.messages (
+          id SERIAL NOT NULL,
+          type TEXT NOT NULL,
+          text TEXT NOT NULL,
+          CONSTRAINT messages_pkey PRIMARY KEY (id),
+          CONSTRAINT messages_type_key UNIQUE (type)
+        );
+        `,
+        
+        // Insert default messages
+        `
+        INSERT INTO public.messages (type, text)
+        VALUES 
+          ('login_success', 'Welcome'),
+          ('welcome', 'Welcome to Regz Cheat'),
+          ('error', 'error')
+        ON CONFLICT (type) DO NOTHING;
+        `,
+        
+        // Login Logs table
+        `
+        CREATE TABLE IF NOT EXISTS public.login_logs (
+          id SERIAL NOT NULL,
+          username TEXT NOT NULL,
+          status TEXT NOT NULL,
+          timestamp TIMESTAMP WITHOUT TIME ZONE NULL DEFAULT now(),
+          CONSTRAINT login_logs_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Login Details table
+        `
+        CREATE TABLE IF NOT EXISTS public.login_details (
+          id SERIAL NOT NULL,
+          username TEXT NOT NULL,
+          ip_address TEXT NULL,
+          hwid TEXT NULL,
+          motherboard_serial TEXT NULL,
+          cpu_serial TEXT NULL,
+          os_version TEXT NULL,
+          ram_capacity TEXT NULL,
+          graphics_card TEXT NULL,
+          storage_capacity TEXT NULL,
+          login_time TIMESTAMP WITHOUT TIME ZONE NULL DEFAULT now(),
+          pc_name TEXT NULL,
+          CONSTRAINT login_details_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // License Keys table
+        `
+        CREATE TABLE IF NOT EXISTS public.license_keys (
+          id SERIAL NOT NULL,
+          license_key TEXT NOT NULL,
+          admin_approval BOOLEAN NULL DEFAULT false,
+          subscription TEXT NULL DEFAULT 'default',
+          hwid TEXT[] NULL,
+          expiredate DATE NULL,
+          key TEXT NULL,
+          hwid_reset_count INTEGER NULL DEFAULT 5,
+          mobile_number TEXT NULL,
+          banned BOOLEAN NULL DEFAULT false,
+          save_hwid BOOLEAN NULL DEFAULT true,
+          max_devices INTEGER NULL DEFAULT 1,
+          CONSTRAINT license_keys_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Create index for license_keys
+        `CREATE INDEX IF NOT EXISTS idx_license_keys ON public.license_keys USING btree (license_key);`,
+        
+        // Add foreign key for license_keys
+        `
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'fk_subscription'
+          ) THEN
+            ALTER TABLE public.license_keys 
+            ADD CONSTRAINT fk_subscription 
+            FOREIGN KEY (subscription) 
+            REFERENCES subscription_types (name) 
+            ON DELETE SET NULL;
+          END IF;
+        END $$;
+        `,
+        
+        // Applications Registry table
+        `
+        CREATE TABLE IF NOT EXISTS public.applications_registry (
+          id BIGSERIAL NOT NULL,
+          name TEXT NOT NULL,
+          owner_id TEXT NOT NULL,
+          version TEXT NOT NULL,
+          app_secret TEXT NOT NULL,
+          is_active BOOLEAN NULL DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE NULL DEFAULT now(),
+          updated_at TIMESTAMP WITH TIME ZONE NULL DEFAULT now(),
+          CONSTRAINT applications_registry_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // App Version table
+        `
+        CREATE TABLE IF NOT EXISTS public.app_version (
+          id SERIAL NOT NULL,
+          version TEXT NOT NULL,
+          created_at TIMESTAMP WITHOUT TIME ZONE NULL DEFAULT now(),
+          CONSTRAINT app_version_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Insert default app version
+        `
+        INSERT INTO public.app_version (version)
+        SELECT '1.0'
+        WHERE NOT EXISTS (SELECT 1 FROM public.app_version);
+        `,
+        
+        // App Authentication Keys table
+        `
+        CREATE TABLE IF NOT EXISTS public.app_authentication_keys (
+          id UUID NOT NULL DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          key TEXT NOT NULL,
+          description TEXT NULL,
+          is_active BOOLEAN NULL DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE NULL DEFAULT now(),
+          created_by UUID NULL,
+          CONSTRAINT app_authentication_keys_pkey PRIMARY KEY (id),
+          CONSTRAINT app_authentication_keys_key_key UNIQUE (key)
+        );
+        `,
+        
+        // Create index for app_authentication_keys
+        `CREATE INDEX IF NOT EXISTS idx_api_keys ON public.app_authentication_keys USING btree (key);`,
+        
+        // Application Open table
+        `
+        CREATE TABLE IF NOT EXISTS public.application_open (
+          id SERIAL NOT NULL,
+          username TEXT NULL,
+          ip_address TEXT NULL,
+          hwid TEXT NULL,
+          motherboard_serial TEXT NULL,
+          cpu_serial TEXT NULL,
+          os_version TEXT NULL,
+          ram_capacity TEXT NULL,
+          graphics_card TEXT NULL,
+          storage_capacity TEXT NULL,
+          pc_name TEXT NULL,
+          timestamp TIMESTAMP WITHOUT TIME ZONE NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT application_open_pkey PRIMARY KEY (id)
+        );
+        `,
+        
+        // Create the execute_sql function
+        `
+        CREATE OR REPLACE FUNCTION execute_sql(sql_query text)
+        RETURNS JSONB
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        AS $$
+        DECLARE
+          result JSONB;
+        BEGIN
+          EXECUTE sql_query;
+          result = '{"success": true}'::JSONB;
+          RETURN result;
+        EXCEPTION WHEN OTHERS THEN
+          result = jsonb_build_object(
+            'success', false,
+            'error', SQLERRM,
+            'detail', SQLSTATE
+          );
+          RETURN result;
+        END;
+        $$;
         `
       ];
       
-      // Try to use rpc first, which is more reliable for executing SQL
-      for (const sql of sqlStatements) {
+      // Execute each SQL statement
+      for (let i = 0; i < sqlStatements.length; i++) {
         try {
-          const { error: rpcError } = await supabase.rpc('pgclient', { query: sql });
-          if (rpcError) {
-            console.error("Error executing SQL via RPC:", rpcError);
+          const sql = sqlStatements[i];
+          console.log(`Executing SQL statement ${i + 1}/${sqlStatements.length}`);
+          
+          // Try to use executeRawSql first
+          try {
+            await executeRawSql(sql);
+          } catch (rpcError) {
+            console.error("Error executing via executeRawSql, trying fallback methods:", rpcError);
             
-            // Fallback to direct SQL (this will only work if SQL permissions are granted)
+            // Try direct execution through rpc
             try {
-              const { error: sqlError } = await supabase.from('migrations').select('*');
-              if (sqlError) {
-                setError(`Failed to create tables. Please make sure your Supabase account has sufficient permissions.`);
-                setIsInstalling(false);
-                return;
+              const { error: directError } = await supabase.rpc('execute_sql', { sql_query: sql });
+              
+              if (directError) {
+                console.error("Error executing SQL via RPC:", directError);
+                throw directError;
               }
-            } catch (directError) {
-              setError(`Failed to create tables: ${directError instanceof Error ? directError.message : 'Unknown error'}`);
-              setIsInstalling(false);
-              return;
+            } catch (execError) {
+              console.error("Execution error:", execError);
+              throw execError;
             }
           }
         } catch (err) {
-          console.error("Error executing SQL statement:", err);
-          setError(`Failed to create tables: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          setIsInstalling(false);
-          return;
+          console.error(`Error executing SQL statement ${i + 1}:`, err);
+          if (i < 2) {
+            // Critical error in initial statements
+            setError(`Failed to create basic tables: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            setIsInstalling(false);
+            toast({
+              title: "Installation failed",
+              description: "Failed to install tables. See error message for details.",
+              variant: "destructive",
+            });
+            return;
+          }
+          // Continue with next statements if non-critical error
+          console.warn("Continuing with next statements...");
         }
       }
       
@@ -337,16 +488,17 @@ const InstallTables: React.FC = () => {
         <div className="space-y-2">
           <h3 className="text-white font-medium">The following tables will be created:</h3>
           <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
-            <li>app_version</li>
-            <li>application_open</li>
+            <li>subscription_types</li>
+            <li>users</li>
             <li>license_keys</li>
             <li>login_details</li>
             <li>login_logs</li>
             <li>messages</li>
             <li>regz_cheat_status</li>
-            <li>subscription_types</li>
-            <li>users</li>
-            <li>web_login_regz</li>
+            <li>app_version</li>
+            <li>application_open</li>
+            <li>applications_registry</li>
+            <li>app_authentication_keys</li>
           </ul>
         </div>
       </CardContent>
