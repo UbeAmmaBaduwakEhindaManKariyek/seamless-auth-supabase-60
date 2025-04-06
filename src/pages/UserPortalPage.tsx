@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -77,11 +78,35 @@ const UserPortalPage: React.FC = () => {
           .maybeSingle();
 
         if (userData && userData.portal_settings) {
-          // Convert the raw data with portal_settings to our expected types
-          // Handle the case where portal_settings might be null or have a different structure
-          const portalSettings = userData.portal_settings as unknown as PortalSettings;
+          // Safely convert the JSON data to our expected PortalSettings type
+          let portalSettings: PortalSettings | null = null;
           
-          if (!portalSettings || typeof portalSettings !== 'object' || !portalSettings.enabled || portalSettings.custom_path !== custom_path) {
+          try {
+            // First cast to unknown, then to our type to avoid direct type errors
+            const rawSettings = userData.portal_settings as Json;
+            
+            // Validate that it's an object with the required properties
+            if (
+              typeof rawSettings === 'object' && 
+              rawSettings !== null && 
+              !Array.isArray(rawSettings) &&
+              'enabled' in rawSettings &&
+              'custom_path' in rawSettings &&
+              'download_url' in rawSettings
+            ) {
+              portalSettings = {
+                enabled: Boolean(rawSettings.enabled),
+                custom_path: String(rawSettings.custom_path || ''),
+                download_url: String(rawSettings.download_url || ''),
+                application_name: rawSettings.application_name ? String(rawSettings.application_name) : undefined
+              };
+            }
+          } catch (e) {
+            console.error('Error parsing portal settings:', e);
+            portalSettings = null;
+          }
+          
+          if (!portalSettings || !portalSettings.enabled || portalSettings.custom_path !== custom_path) {
             toast({
               title: 'Portal Not Found',
               description: 'The requested portal does not exist or is disabled.',

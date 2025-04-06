@@ -88,11 +88,34 @@ const UserPortalSettings = () => {
         }
 
         if (userData) {
-          // Convert the raw data with portal_settings to our expected types
-          // Handle the case where portal_settings might be null or have a different structure
-          const portalSettings = userData.portal_settings as unknown as PortalSettings;
+          // Safely convert the JSON data to our expected PortalSettings type
+          let portalSettings: PortalSettings | null = null;
           
-          if (portalSettings && typeof portalSettings === 'object') {
+          try {
+            if (userData.portal_settings) {
+              // First cast to unknown, then to our type to avoid direct type errors
+              const rawSettings = userData.portal_settings as Json;
+              
+              // Validate that it's an object with the required properties
+              if (
+                typeof rawSettings === 'object' && 
+                rawSettings !== null && 
+                !Array.isArray(rawSettings)
+              ) {
+                portalSettings = {
+                  enabled: 'enabled' in rawSettings ? Boolean(rawSettings.enabled) : false,
+                  custom_path: 'custom_path' in rawSettings ? String(rawSettings.custom_path || '') : '',
+                  download_url: 'download_url' in rawSettings ? String(rawSettings.download_url || '') : '',
+                  application_name: 'application_name' in rawSettings ? String(rawSettings.application_name || '') : undefined
+                };
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing portal settings:', e);
+            portalSettings = null;
+          }
+          
+          if (portalSettings) {
             setPortalConfig({
               enabled: portalSettings.enabled || false,
               custom_path: portalSettings.custom_path || '',
