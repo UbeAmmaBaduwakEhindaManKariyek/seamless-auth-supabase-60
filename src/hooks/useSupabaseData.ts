@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { getActiveClient, createCustomClient } from '@/integrations/supabase/client';
+import { getActiveClient, createCustomClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { PostgrestError } from '@supabase/supabase-js';
@@ -39,12 +39,9 @@ export function useSupabaseData<T extends object>(
       try {
         // Ensure we have a custom client
         createCustomClient(user.supabaseUrl, user.supabaseKey);
-        const supabase = getActiveClient();
-
-        // Start building the query - using 'any' to bypass strict typing
-        // since we're passing dynamic table names
-        let query = (supabase.from as any)(tableName)
-          .select(options.columns || '*');
+        
+        // Start building the query using our helper function
+        let query = fromTable(tableName).select(options.columns || '*');
 
         // Apply any filters
         if (options.filter && options.filter.length > 0) {
@@ -138,9 +135,8 @@ export async function saveSupabaseData<T extends object>(
   } = {}
 ) {
   try {
-    const supabase = getActiveClient();
-    // Using 'any' to bypass strict typing since we need to use dynamic table names
-    let query = (supabase.from as any)(tableName).insert(data);
+    // Use our helper function for better type handling
+    let query = fromTable(tableName).insert(data);
     let finalQuery = query;
 
     // Handle conflict option
@@ -182,9 +178,8 @@ export async function updateSupabaseData<T extends object>(
   } = {}
 ) {
   try {
-    const supabase = getActiveClient();
-    // Using 'any' to bypass strict typing for dynamic table names
-    let query = (supabase.from as any)(tableName)
+    // Use our helper function for better type handling
+    let query = fromTable(tableName)
       .update(updates)
       .eq(matchColumn, matchValue);
     
@@ -220,9 +215,8 @@ export async function deleteSupabaseData(
   matchValue: any
 ) {
   try {
-    const supabase = getActiveClient();
-    // Using 'any' to bypass strict typing for dynamic table names
-    const { error } = await (supabase.from as any)(tableName)
+    // Use our helper function for better type handling
+    const { error } = await fromTable(tableName)
       .delete()
       .eq(matchColumn, matchValue);
 

@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Application } from '@/types/applications';
 
@@ -35,8 +34,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
 
   const fetchLatestAppVersion = async () => {
     try {
-      const { data, error } = await supabase
-        .from('app_version')
+      const { data, error } = await fromTable('app_version')
         .select('version')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -92,8 +90,7 @@ const CreateAppModal: React.FC<CreateAppModalProps> = ({ open, onClose, onCreate
   
   const createApplication = async (name: string, version: string, appSecret: string) => {
     try {
-      const { data, error } = await supabase
-        .from('applications_registry')
+      const { data, error } = await fromTable('applications_registry')
         .insert({
           name,
           version,
