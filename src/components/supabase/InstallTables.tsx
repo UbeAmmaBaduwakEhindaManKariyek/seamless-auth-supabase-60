@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 import { getActiveClient, executeRawSql } from '@/integrations/supabase/client';
 
 const InstallTables: React.FC = () => {
@@ -14,6 +14,7 @@ const InstallTables: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCheckingTables, setIsCheckingTables] = useState(true);
   const [tablesExist, setTablesExist] = useState<boolean>(false);
+  const [needsManualInstall, setNeedsManualInstall] = useState(false);
   const { user, isConnected } = useAuth();
   const { toast } = useToast();
   
@@ -73,6 +74,16 @@ const InstallTables: React.FC = () => {
     setError(null);
     
     try {
+      // First check if execute_sql function exists
+      const { error: functionCheckError } = await executeRawSql(`SELECT 1`);
+      
+      if (functionCheckError && functionCheckError.message?.includes('execute_sql function is not available')) {
+        setNeedsManualInstall(true);
+        setError("The execute_sql function is not available in your Supabase database. Please follow the manual installation instructions.");
+        setIsInstalling(false);
+        return;
+      }
+      
       // Use the active Supabase client
       const supabase = getActiveClient();
       
@@ -346,7 +357,7 @@ const InstallTables: React.FC = () => {
         );
         `,
         
-        // Create the execute_sql function
+        // Create the execute_sql function if it doesn't exist
         `
         CREATE OR REPLACE FUNCTION execute_sql(sql_query text)
         RETURNS JSONB
@@ -379,22 +390,14 @@ const InstallTables: React.FC = () => {
           
           // Try to use executeRawSql first
           try {
-            await executeRawSql(sql);
-          } catch (rpcError) {
-            console.error("Error executing via executeRawSql, trying fallback methods:", rpcError);
+            const { error: sqlError } = await executeRawSql(sql);
             
-            // Try direct execution through rpc
-            try {
-              const { error: directError } = await supabase.rpc('execute_sql', { sql_query: sql });
-              
-              if (directError) {
-                console.error("Error executing SQL via RPC:", directError);
-                throw directError;
-              }
-            } catch (execError) {
-              console.error("Execution error:", execError);
-              throw execError;
+            if (sqlError) {
+              throw sqlError;
             }
+          } catch (rpcError) {
+            console.error("Error executing SQL statement, cannot proceed:", rpcError);
+            throw rpcError;
           }
         } catch (err) {
           console.error(`Error executing SQL statement ${i + 1}:`, err);
@@ -430,6 +433,13 @@ const InstallTables: React.FC = () => {
       });
     } finally {
       setIsInstalling(false);
+    }
+  };
+
+  const openSupabaseDashboard = () => {
+    if (user?.supabaseUrl) {
+      const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');
+      window.open(dashboardUrl, '_blank');
     }
   };
 
@@ -475,7 +485,25 @@ const InstallTables: React.FC = () => {
           </Alert>
         )}
 
-        {error && (
+        {needsManualInstall && (
+          <Alert className="bg-amber-900 border-amber-700">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Manual Installation Required</AlertTitle>
+            <AlertDescription className="space-y-4">
+              <p>The execute_sql function is not available in your Supabase database. You'll need to create this function manually or use the Supabase SQL editor to create tables.</p>
+              <Button 
+                variant="outline" 
+                className="flex items-center bg-amber-800 hover:bg-amber-700 border-amber-600"
+                onClick={openSupabaseDashboard}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Supabase SQL Editor
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {error && !needsManualInstall && (
           <Alert className="bg-red-900 border-red-700">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Installation Error</AlertTitle>
@@ -506,7 +534,7 @@ const InstallTables: React.FC = () => {
         <Button 
           onClick={handleInstall} 
           className="w-full bg-blue-600 hover:bg-blue-700"
-          disabled={isInstalling || (!isConnected) || tablesExist}
+          disabled={isInstalling || (!isConnected) || tablesExist || needsManualInstall}
         >
           {isInstalling ? 'Installing...' : tablesExist ? 'Tables Already Installed' : 'Install All Tables'}
         </Button>

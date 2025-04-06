@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Key, Copy, CheckCircle, Plus, Trash } from 'lucide-react';
+import { Loader2, Key, Copy, CheckCircle, Plus, Trash, ExternalLink, AlertCircle } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -30,6 +30,7 @@ const ApiKeyManagement: React.FC = () => {
   const [newKeyDescription, setNewKeyDescription] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
+  const [sqlExecutionError, setSqlExecutionError] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const supabase = getActiveClient();
@@ -38,54 +39,81 @@ const ApiKeyManagement: React.FC = () => {
   const fetchApiKeys = async () => {
     setIsLoading(true);
     try {
-      // Execute raw SQL to check if the table exists
-      const { error: tableCheckError } = await supabase.rpc('execute_sql', {
-        sql_query: `
-          SELECT COUNT(*) FROM information_schema.tables 
-          WHERE table_schema = 'public' AND table_name = 'app_authentication_keys'
-        `
-      });
+      // Try direct table access first
+      try {
+        const { data: directData, error: directError } = await supabase
+          .from('app_authentication_keys')
+          .select('id, name, key, description, is_active, created_at')
+          .order('created_at', { ascending: false });
 
-      // If there's an error with the SQL query, we'll handle it differently
-      if (tableCheckError) {
-        console.error('Error checking for table:', tableCheckError);
-        setApiKeys([]);
-        setIsLoading(false);
-        return;
+        if (!directError) {
+          setApiKeys(directData as ApiKey[]);
+          setSqlExecutionError(false);
+          setIsLoading(false);
+          return;
+        }
+      } catch (directError) {
+        console.error('Error with direct table access:', directError);
       }
 
-      // If we get here, the table exists, so we can query it
-      const { data, error } = await supabase.rpc('execute_sql', {
-        sql_query: `
-          SELECT id, name, key, description, is_active, created_at 
-          FROM app_authentication_keys 
-          ORDER BY created_at DESC
-        `
-      });
-
-      if (error) {
-        console.error('Error fetching API keys:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch API keys',
-          variant: 'destructive',
+      // Fall back to using the SQL execution function
+      try {
+        const { error: tableCheckError } = await supabase.rpc('execute_sql', {
+          sql_query: `
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'app_authentication_keys'
+          `
         });
-        setApiKeys([]);
-      } else {
-        // Parse the rows from the result
-        if (data && data.length > 0 && data[0].rows) {
-          const keys: ApiKey[] = data[0].rows.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            key: row.key,
-            description: row.description,
-            is_active: row.is_active,
-            created_at: row.created_at
-          }));
-          setApiKeys(keys);
-        } else {
+
+        if (tableCheckError) {
+          console.error('Error checking for table:', tableCheckError);
+          if (tableCheckError.message?.includes('Could not find the function')) {
+            setSqlExecutionError(true);
+          }
           setApiKeys([]);
+          setIsLoading(false);
+          return;
         }
+
+        const { data, error } = await supabase.rpc('execute_sql', {
+          sql_query: `
+            SELECT id, name, key, description, is_active, created_at 
+            FROM app_authentication_keys 
+            ORDER BY created_at DESC
+          `
+        });
+
+        if (error) {
+          console.error('Error fetching API keys:', error);
+          if (error.message?.includes('Could not find the function')) {
+            setSqlExecutionError(true);
+          }
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch API keys',
+            variant: 'destructive',
+          });
+          setApiKeys([]);
+        } else {
+          // Parse the rows from the result
+          if (data && data.length > 0 && data[0].rows) {
+            const keys: ApiKey[] = data[0].rows.map((row: any) => ({
+              id: row.id,
+              name: row.name,
+              key: row.key,
+              description: row.description,
+              is_active: row.is_active,
+              created_at: row.created_at
+            }));
+            setApiKeys(keys);
+          } else {
+            setApiKeys([]);
+          }
+        }
+      } catch (error) {
+        console.error('Error executing SQL function:', error);
+        setSqlExecutionError(true);
+        setApiKeys([]);
       }
     } catch (error) {
       console.error('Unexpected error fetching API keys:', error);
@@ -112,24 +140,48 @@ const ApiKeyManagement: React.FC = () => {
 
     setIsCreating(true);
     try {
-      // Call the create-app-key edge function
-      const response = await supabase.functions.invoke('create-app-key', {
-        body: { name: newKeyName.trim(), description: newKeyDescription.trim() || null }
-      });
+      if (sqlExecutionError) {
+        // Try direct insert if SQL execution function is not available
+        const newKey = crypto.randomUUID();
+        const { data, error } = await supabase
+          .from('app_authentication_keys')
+          .insert({
+            name: newKeyName.trim(),
+            description: newKeyDescription.trim() || null,
+            key: newKey,
+          })
+          .select();
 
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
+        if (error) {
+          throw new Error(error.message);
+        }
 
-      if (response.data.success && response.data.data) {
-        setNewApiKey(response.data.data.key);
+        setNewApiKey(newKey);
         await fetchApiKeys();
         toast({
           title: 'Success',
           description: 'API key created successfully',
         });
       } else {
-        throw new Error('Failed to create API key');
+        // Call the create-app-key edge function
+        const response = await supabase.functions.invoke('create-app-key', {
+          body: { name: newKeyName.trim(), description: newKeyDescription.trim() || null }
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
+
+        if (response.data.success && response.data.data) {
+          setNewApiKey(response.data.data.key);
+          await fetchApiKeys();
+          toast({
+            title: 'Success',
+            description: 'API key created successfully',
+          });
+        } else {
+          throw new Error('Failed to create API key');
+        }
       }
     } catch (error) {
       console.error('Error creating API key:', error);
@@ -146,12 +198,24 @@ const ApiKeyManagement: React.FC = () => {
   // Delete an API key
   const deleteApiKey = async (id: string) => {
     try {
-      const { error } = await supabase.rpc('execute_sql', {
-        sql_query: `DELETE FROM app_authentication_keys WHERE id = '${id}'`
-      });
+      if (sqlExecutionError) {
+        // Try direct delete if SQL execution function is not available
+        const { error } = await supabase
+          .from('app_authentication_keys')
+          .delete()
+          .eq('id', id);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase.rpc('execute_sql', {
+          sql_query: `DELETE FROM app_authentication_keys WHERE id = '${id}'`
+        });
+
+        if (error) {
+          throw error;
+        }
       }
 
       setApiKeys(apiKeys.filter(key => key.id !== id));
@@ -172,16 +236,28 @@ const ApiKeyManagement: React.FC = () => {
   // Toggle API key status (active/inactive)
   const toggleApiKeyStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase.rpc('execute_sql', {
-        sql_query: `
-          UPDATE app_authentication_keys 
-          SET is_active = ${!currentStatus} 
-          WHERE id = '${id}'
-        `
-      });
+      if (sqlExecutionError) {
+        // Try direct update if SQL execution function is not available
+        const { error } = await supabase
+          .from('app_authentication_keys')
+          .update({ is_active: !currentStatus })
+          .eq('id', id);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase.rpc('execute_sql', {
+          sql_query: `
+            UPDATE app_authentication_keys 
+            SET is_active = ${!currentStatus} 
+            WHERE id = '${id}'
+          `
+        });
+
+        if (error) {
+          throw error;
+        }
       }
 
       setApiKeys(apiKeys.map(key => 
@@ -215,6 +291,14 @@ const ApiKeyManagement: React.FC = () => {
     setNewKeyDescription('');
     setNewApiKey(null);
     setIsDialogOpen(false);
+  };
+
+  // Open Supabase dashboard
+  const openSupabaseDashboard = () => {
+    if (user?.supabaseUrl) {
+      const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');
+      window.open(dashboardUrl, '_blank');
+    }
   };
 
   return (
@@ -323,6 +407,27 @@ const ApiKeyManagement: React.FC = () => {
         </Dialog>
       </CardHeader>
       <CardContent>
+        {sqlExecutionError && (
+          <Alert className="bg-amber-900 border-amber-700 mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between w-full">
+              <span>
+                The execute_sql function is not available in your Supabase database. 
+                Using direct table access as a fallback.
+              </span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={openSupabaseDashboard}
+                className="bg-amber-800 hover:bg-amber-700 border-amber-600 ml-2"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                SQL Editor
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {isLoading ? (
           <div className="flex justify-center p-6">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />

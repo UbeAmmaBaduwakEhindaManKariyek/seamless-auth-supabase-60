@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 
 interface AppVersion {
@@ -21,8 +22,10 @@ const AppVersionManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sqlExecutionError, setSqlExecutionError] = useState<boolean>(false);
   
   const { toast } = useToast();
+  const { user } = useAuth();
   const supabase = getActiveClient();
 
   // Fetch current version
@@ -32,54 +35,143 @@ const AppVersionManager: React.FC = () => {
       setError(null);
       
       try {
-        // First, check if the table exists
-        const { error: tableCheckError } = await supabase
-          .from('app_version')
-          .select('count', { count: 'exact', head: true })
-          .limit(1);
-          
-        if (tableCheckError) {
-          // Table likely doesn't exist, create it
-          await supabase.rpc('execute_sql', {
-            sql_query: `
-              CREATE TABLE IF NOT EXISTS app_version (
-                id SERIAL PRIMARY KEY,
-                version TEXT NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-              );
-            `
-          });
-          
-          // Insert initial version
-          await supabase
+        // Try direct table access first
+        try {
+          const { data: tableData, error: tableError } = await supabase
             .from('app_version')
-            .insert({ version: '1.0.0' });
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+          if (!tableError) {
+            if (tableData && tableData.length > 0) {
+              setVersions(tableData);
+              setCurrentVersion(tableData[0]);
+              setNewVersion(tableData[0].version);
+              setSqlExecutionError(false);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            console.error("Error accessing app_version table directly:", tableError);
+          }
+        } catch (directError) {
+          console.error("Error with direct table access:", directError);
         }
         
-        const { data, error } = await supabase
-          .from('app_version')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          setVersions(data);
-          setCurrentVersion(data[0]);
-          setNewVersion(data[0].version);
-        } else {
-          // If no versions exist, create an initial one
-          const { data: newData, error: insertError } = await supabase
-            .from('app_version')
-            .insert({ version: '1.0.0' })
-            .select()
-            .single();
+        // Fall back to using the SQL execution function
+        try {
+          // First, check if the table exists
+          const { error: tableCheckError } = await supabase.rpc('execute_sql', {
+            sql_query: `
+              SELECT COUNT(*) FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = 'app_version'
+            `
+          });
             
-          if (insertError) throw insertError;
+          if (tableCheckError) {
+            if (tableCheckError.message?.includes('Could not find the function')) {
+              setSqlExecutionError(true);
+              throw new Error('SQL execution function not available');
+            }
+            
+            // Table likely doesn't exist, create it
+            await supabase.rpc('execute_sql', {
+              sql_query: `
+                CREATE TABLE IF NOT EXISTS app_version (
+                  id SERIAL PRIMARY KEY,
+                  version TEXT NOT NULL,
+                  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+              `
+            });
+            
+            // Insert initial version
+            await supabase.rpc('execute_sql', {
+              sql_query: `INSERT INTO app_version (version) VALUES ('1.0.0')`
+            });
+          }
           
-          setVersions([newData]);
-          setCurrentVersion(newData);
-          setNewVersion(newData.version);
+          const { data, error } = await supabase.rpc('execute_sql', {
+            sql_query: `
+              SELECT * FROM app_version 
+              ORDER BY created_at DESC
+            `
+          });
+            
+          if (error) {
+            if (error.message?.includes('Could not find the function')) {
+              setSqlExecutionError(true);
+              throw new Error('SQL execution function not available');
+            }
+            throw error;
+          }
+          
+          if (data && data.length > 0 && data[0].rows) {
+            const versionData = data[0].rows.map((row: any) => ({
+              id: row.id,
+              version: row.version,
+              created_at: row.created_at
+            }));
+            setVersions(versionData);
+            setCurrentVersion(versionData[0]);
+            setNewVersion(versionData[0].version);
+          } else {
+            // If no versions exist, create an initial one
+            const { data: newData, error: insertError } = await supabase.rpc('execute_sql', {
+              sql_query: `
+                INSERT INTO app_version (version) VALUES ('1.0.0') 
+                RETURNING id, version, created_at
+              `
+            });
+              
+            if (insertError) throw insertError;
+            
+            if (newData && newData.length > 0 && newData[0].rows) {
+              const initialVersion = {
+                id: newData[0].rows[0].id,
+                version: newData[0].rows[0].version,
+                created_at: newData[0].rows[0].created_at
+              };
+              setVersions([initialVersion]);
+              setCurrentVersion(initialVersion);
+              setNewVersion(initialVersion.version);
+            }
+          }
+        } catch (sqlError) {
+          console.error("Error using SQL execution function:", sqlError);
+          if (sqlError.message?.includes('SQL execution function not available')) {
+            // Create the app_version table directly
+            try {
+              const { error: createTableError } = await supabase
+                .from('app_version')
+                .insert({ version: '1.0.0' })
+                .select()
+                .single();
+                
+              if (!createTableError) {
+                // Fetch the newly created version
+                const { data: newVersionData, error: newVersionError } = await supabase
+                  .from('app_version')
+                  .select('*')
+                  .order('created_at', { ascending: false });
+                  
+                if (!newVersionError && newVersionData && newVersionData.length > 0) {
+                  setVersions(newVersionData);
+                  setCurrentVersion(newVersionData[0]);
+                  setNewVersion(newVersionData[0].version);
+                } else {
+                  throw newVersionError || new Error('Failed to fetch new version data');
+                }
+              } else {
+                throw createTableError;
+              }
+            } catch (fallbackError) {
+              console.error("Error with fallback method:", fallbackError);
+              throw fallbackError;
+            }
+          } else {
+            throw sqlError;
+          }
         }
       } catch (err) {
         console.error("Error fetching app version:", err);
@@ -121,16 +213,55 @@ const AppVersionManager: React.FC = () => {
     setError(null);
     
     try {
-      const { data, error } = await supabase
-        .from('app_version')
-        .insert({ version: newVersion.trim() })
-        .select()
-        .single();
+      if (sqlExecutionError) {
+        // Use direct table access if SQL execution is not available
+        const { data, error } = await supabase
+          .from('app_version')
+          .insert({ version: newVersion.trim() })
+          .select()
+          .single();
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      setVersions([data, ...versions]);
-      setCurrentVersion(data);
+        setVersions([data, ...versions]);
+        setCurrentVersion(data);
+      } else {
+        // Use SQL execution function
+        const { data, error } = await supabase.rpc('execute_sql', {
+          sql_query: `
+            INSERT INTO app_version (version) 
+            VALUES ('${newVersion.trim()}') 
+            RETURNING id, version, created_at
+          `
+        });
+          
+        if (error) {
+          if (error.message?.includes('Could not find the function')) {
+            setSqlExecutionError(true);
+            // Try direct insert instead
+            const { data: directData, error: directError } = await supabase
+              .from('app_version')
+              .insert({ version: newVersion.trim() })
+              .select()
+              .single();
+              
+            if (directError) throw directError;
+            
+            setVersions([directData, ...versions]);
+            setCurrentVersion(directData);
+          } else {
+            throw error;
+          }
+        } else if (data && data.length > 0 && data[0].rows) {
+          const newVersionData = {
+            id: data[0].rows[0].id,
+            version: data[0].rows[0].version,
+            created_at: data[0].rows[0].created_at
+          };
+          setVersions([newVersionData, ...versions]);
+          setCurrentVersion(newVersionData);
+        }
+      }
       
       toast({
         title: "Success",
@@ -146,6 +277,14 @@ const AppVersionManager: React.FC = () => {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Open Supabase dashboard
+  const openSupabaseDashboard = () => {
+    if (user?.supabaseUrl) {
+      const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');
+      window.open(dashboardUrl, '_blank');
     }
   };
 
@@ -169,6 +308,27 @@ const AppVersionManager: React.FC = () => {
           </Alert>
         ) : (
           <div className="space-y-4">
+            {sqlExecutionError && (
+              <Alert className="bg-amber-900 border-amber-700 mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between w-full">
+                  <span>
+                    The execute_sql function is not available in your Supabase database. 
+                    Using direct table access as a fallback.
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={openSupabaseDashboard}
+                    className="bg-amber-800 hover:bg-amber-700 border-amber-600 ml-2"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    SQL Editor
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div>
               <p className="text-sm font-medium text-gray-400 mb-1">Current Version</p>
               <p className="text-lg font-semibold text-white">{currentVersion?.version}</p>

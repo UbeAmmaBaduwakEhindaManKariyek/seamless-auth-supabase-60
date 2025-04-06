@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import { getActiveClient } from '@/integrations/supabase/client';
 
 const SupabaseSetup: React.FC = () => {
@@ -13,6 +13,7 @@ const SupabaseSetup: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isCreatingFunction, setIsCreatingFunction] = useState(false);
   const { saveSupabaseConfig, user, isConnected, checkConnection } = useAuth();
 
   // Initialize with saved values if available
@@ -48,6 +49,58 @@ const SupabaseSetup: React.FC = () => {
       return success;
     } finally {
       setIsTestingConnection(false);
+    }
+  };
+
+  const createExecuteSqlFunction = async () => {
+    if (!isConnected || !user?.supabaseUrl) {
+      return;
+    }
+    
+    setIsCreatingFunction(true);
+    try {
+      const supabase = getActiveClient();
+      
+      try {
+        // Check if function already exists
+        const { data: testData, error: testError } = await supabase.rpc('execute_sql', {
+          sql_query: 'SELECT 1'
+        });
+        
+        if (!testError) {
+          // Function exists and works
+          return true;
+        }
+      } catch (err) {
+        console.log('Function check failed, trying to create it');
+      }
+      
+      // Function doesn't exist or isn't working, try creating it
+      try {
+        // Use raw SQL through REST API
+        const { error } = await supabase.functions.invoke('create-execute-sql-function', {
+          body: {}
+        });
+        
+        if (error) {
+          console.error('Error creating execute_sql function:', error);
+          return false;
+        }
+        
+        return true;
+      } catch (err) {
+        console.error('Error invoking function creation:', err);
+        return false;
+      }
+    } finally {
+      setIsCreatingFunction(false);
+    }
+  };
+
+  const openSupabaseDashboard = () => {
+    if (user?.supabaseUrl) {
+      const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');
+      window.open(dashboardUrl, '_blank');
     }
   };
 
@@ -113,6 +166,37 @@ const SupabaseSetup: React.FC = () => {
               Use the anon/public key from your Supabase project settings
             </p>
           </div>
+          
+          {isConnected && (
+            <div className="flex justify-between items-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a] flex items-center"
+                onClick={openSupabaseDashboard}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open SQL Editor
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
+                onClick={createExecuteSqlFunction}
+                disabled={isCreatingFunction}
+              >
+                {isCreatingFunction ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating SQL Function...
+                  </>
+                ) : (
+                  'Create execute_sql Function'
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button 
