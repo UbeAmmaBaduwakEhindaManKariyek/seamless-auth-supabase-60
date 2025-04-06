@@ -8,6 +8,8 @@ export interface LoginCredentials {
 
 export interface UserCredentials extends LoginCredentials {
   email: string;
+  supabaseUrl?: string;
+  supabaseKey?: string;
 }
 
 export interface AuthUser {
@@ -37,4 +39,23 @@ export interface PortalSettings {
   custom_path: string;
   download_url: string;
   application_name?: string;
+}
+
+export interface License {
+  id: number;
+  key?: string;
+  license_key: string;
+  user_id?: number | null;
+  created_at: string;
+  expiredate: string | null;
+  is_active: boolean;
+  username?: string;
+  admin_approval?: boolean;
+  banned?: boolean;
+  hwid?: any[];
+  hwid_reset_count?: number;
+  max_devices?: number;
+  mobile_number?: string;
+  save_hwid?: boolean;
+  subscription?: string;
 }

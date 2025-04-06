@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Download, RefreshCw } from 'lucide-react';
+import { PortalSettings } from '@/types/auth';
 
 interface PortalConfig {
   application_name: string;
@@ -76,7 +77,7 @@ const UserPortalPage: React.FC = () => {
           .maybeSingle();
 
         if (userData && userData.portal_settings) {
-          const settings = userData.portal_settings;
+          const settings = userData.portal_settings as PortalSettings;
           
           if (!settings.enabled || settings.custom_path !== custom_path) {
             toast({
