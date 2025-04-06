@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Download, Search, Loader2 } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -46,8 +45,7 @@ const AppOpenPage: React.FC = () => {
       setIsLoading(true);
       try {
         const client = getActiveClient();
-        const { data, error } = await client
-          .from('application_open')
+        const { data, error } = await fromTable('application_open')
           .select('*')
           .order('timestamp', { ascending: false })
           .limit(100);

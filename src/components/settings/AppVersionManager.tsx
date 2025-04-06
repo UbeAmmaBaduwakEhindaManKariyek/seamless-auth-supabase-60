@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle, ExternalLink } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable, callRpc } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -32,17 +32,14 @@ const AppVersionManager: React.FC = () => {
   const { user } = useAuth();
   const supabase = getActiveClient();
 
-  // Fetch current version
   useEffect(() => {
     const fetchVersions = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // Try direct table access first
         try {
-          const { data: tableData, error: tableError } = await supabase
-            .from('app_version')
+          const { data: tableData, error: tableError } = await fromTable('app_version')
             .select('*')
             .order('created_at', { ascending: false });
             
@@ -62,10 +59,8 @@ const AppVersionManager: React.FC = () => {
           console.error("Error with direct table access:", directError);
         }
         
-        // Fall back to using the SQL execution function
         try {
-          // First, check if the table exists
-          const { error: tableCheckError } = await (supabase.rpc as any)('execute_sql', {
+          const { error: tableCheckError } = await callRpc('execute_sql', {
             sql_query: `
               SELECT COUNT(*) FROM information_schema.tables 
               WHERE table_schema = 'public' AND table_name = 'app_version'
@@ -78,8 +73,7 @@ const AppVersionManager: React.FC = () => {
               throw new Error('SQL execution function not available');
             }
             
-            // Table likely doesn't exist, create it
-            await (supabase.rpc as any)('execute_sql', {
+            await callRpc('execute_sql', {
               sql_query: `
                 CREATE TABLE IF NOT EXISTS app_version (
                   id SERIAL PRIMARY KEY,
@@ -89,13 +83,12 @@ const AppVersionManager: React.FC = () => {
               `
             });
             
-            // Insert initial version
-            await (supabase.rpc as any)('execute_sql', {
+            await callRpc('execute_sql', {
               sql_query: `INSERT INTO app_version (version) VALUES ('1.0.0')`
             });
           }
           
-          const { data, error } = await (supabase.rpc as any)('execute_sql', {
+          const { data, error } = await callRpc('execute_sql', {
             sql_query: `
               SELECT * FROM app_version 
               ORDER BY created_at DESC
@@ -120,8 +113,7 @@ const AppVersionManager: React.FC = () => {
             setCurrentVersion(versionData[0]);
             setNewVersion(versionData[0].version);
           } else {
-            // If no versions exist, create an initial one
-            const { data: newData, error: insertError } = await (supabase.rpc as any)('execute_sql', {
+            const { data: newData, error: insertError } = await callRpc('execute_sql', {
               sql_query: `
                 INSERT INTO app_version (version) VALUES ('1.0.0') 
                 RETURNING id, version, created_at
@@ -144,18 +136,14 @@ const AppVersionManager: React.FC = () => {
         } catch (sqlError) {
           console.error("Error using SQL execution function:", sqlError);
           if (sqlError.message?.includes('SQL execution function not available')) {
-            // Create the app_version table directly
             try {
-              const { error: createTableError } = await supabase
-                .from('app_version')
+              const { error: createTableError } = await fromTable('app_version')
                 .insert({ version: '1.0.0' })
                 .select()
                 .single();
                 
               if (!createTableError) {
-                // Fetch the newly created version
-                const { data: newVersionData, error: newVersionError } = await supabase
-                  .from('app_version')
+                const { data: newVersionData, error: newVersionError } = await fromTable('app_version')
                   .select('*')
                   .order('created_at', { ascending: false });
                   
@@ -193,7 +181,6 @@ const AppVersionManager: React.FC = () => {
     fetchVersions();
   }, []);
 
-  // Update version
   const updateVersion = async () => {
     if (!newVersion.trim()) {
       toast({
@@ -218,9 +205,7 @@ const AppVersionManager: React.FC = () => {
     
     try {
       if (sqlExecutionError) {
-        // Use direct table access if SQL execution is not available
-        const { data, error } = await supabase
-          .from('app_version')
+        const { data, error } = await fromTable('app_version')
           .insert({ version: newVersion.trim() })
           .select()
           .single();
@@ -230,8 +215,7 @@ const AppVersionManager: React.FC = () => {
         setVersions([data, ...versions]);
         setCurrentVersion(data);
       } else {
-        // Use SQL execution function
-        const { data, error } = await (supabase.rpc as any)('execute_sql', {
+        const { data, error } = await callRpc('execute_sql', {
           sql_query: `
             INSERT INTO app_version (version) 
             VALUES ('${newVersion.trim()}') 
@@ -242,9 +226,7 @@ const AppVersionManager: React.FC = () => {
         if (error) {
           if (error.message?.includes('Could not find the function')) {
             setSqlExecutionError(true);
-            // Try direct insert instead
-            const { data: directData, error: directError } = await supabase
-              .from('app_version')
+            const { data: directData, error: directError } = await fromTable('app_version')
               .insert({ version: newVersion.trim() })
               .select()
               .single();
@@ -284,7 +266,6 @@ const AppVersionManager: React.FC = () => {
     }
   };
 
-  // Open Supabase dashboard
   const openSupabaseDashboard = () => {
     if (user?.supabaseUrl) {
       const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');

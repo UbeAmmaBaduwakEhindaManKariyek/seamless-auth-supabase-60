@@ -9,7 +9,7 @@ import { Filter, Plus, Search, Loader2 } from 'lucide-react';
 import CreateAppModal from '@/components/applications/CreateAppModal';
 import ApplicationCredentials from '@/components/applications/ApplicationCredentials';
 import { useAuth } from '@/contexts/AuthContext';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Application } from '@/types/applications';
 
@@ -49,8 +49,7 @@ const ApplicationsPage: React.FC = () => {
       
       try {
         // First try direct table access
-        const { data, error } = await supabase
-          .from('applications_registry')
+        const { data, error } = await fromTable('applications_registry')
           .select('*')
           .order('created_at', { ascending: false });
           

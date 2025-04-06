@@ -47,17 +47,28 @@ export function getActiveClient() {
 export async function executeRawSql(sqlQuery: string) {
   try {
     const client = getActiveClient();
-    // Use type assertion to resolve the TypeScript error
-    return await client.rpc('execute_sql', { sql_query: sqlQuery });
+    // Safe type assertion for RPC calls
+    return await (client as any).rpc('execute_sql', { sql_query: sqlQuery });
   } catch (error) {
     console.error('Error executing raw SQL:', error);
     return { error };
   }
 }
 
-// Helper function to safely access tables with proper type handling
+/**
+ * Helper function to safely access tables with proper type handling
+ */
 export function fromTable(tableName: string) {
   const client = getActiveClient();
-  // Use type assertion to any to bypass the TypeScript error
+  // Use type assertion to bypass TypeScript errors with dynamic table names
   return (client as any).from(tableName);
+}
+
+/**
+ * Helper function for safe RPC calls
+ */
+export function callRpc(functionName: string, params?: Record<string, any>) {
+  const client = getActiveClient();
+  // Use type assertion to bypass TypeScript errors with dynamic function names
+  return (client as any).rpc(functionName, params);
 }

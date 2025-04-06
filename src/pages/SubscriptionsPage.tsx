@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Trash2, MoreHorizontal, Loader2 } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
@@ -54,8 +53,7 @@ const SubscriptionsPage: React.FC = () => {
       setIsLoading(true);
       try {
         const client = getActiveClient();
-        const { data, error } = await client
-          .from('subscription_types')
+        const { data, error } = await fromTable('subscription_types')
           .select('*')
           .order('created_at', { ascending: false });
         
@@ -138,8 +136,7 @@ const SubscriptionsPage: React.FC = () => {
     try {
       if (isConnected) {
         const client = getActiveClient();
-        const { data, error } = await client
-          .from('subscription_types')
+        const { data, error } = await fromTable('subscription_types')
           .insert({
             name: newSubscription.name,
             description: newSubscription.description || null,

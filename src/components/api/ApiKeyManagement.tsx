@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Key, Copy, CheckCircle, Plus, Trash, ExternalLink, AlertCircle } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable, callRpc } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -39,14 +39,11 @@ const ApiKeyManagement: React.FC = () => {
   const { toast } = useToast();
   const supabase = getActiveClient();
 
-  // Fetch API keys
   const fetchApiKeys = async () => {
     setIsLoading(true);
     try {
-      // Try direct table access first
       try {
-        const { data: directData, error: directError } = await supabase
-          .from('app_authentication_keys')
+        const { data: directData, error: directError } = await fromTable('app_authentication_keys')
           .select('id, name, key, description, is_active, created_at')
           .order('created_at', { ascending: false });
 
@@ -60,9 +57,8 @@ const ApiKeyManagement: React.FC = () => {
         console.error('Error with direct table access:', directError);
       }
 
-      // Fall back to using the SQL execution function
       try {
-        const { error: tableCheckError } = await (supabase.rpc as any)('execute_sql', {
+        const { error: tableCheckError } = await callRpc('execute_sql', {
           sql_query: `
             SELECT COUNT(*) FROM information_schema.tables 
             WHERE table_schema = 'public' AND table_name = 'app_authentication_keys'
@@ -79,7 +75,7 @@ const ApiKeyManagement: React.FC = () => {
           return;
         }
 
-        const { data, error } = await (supabase.rpc as any)('execute_sql', {
+        const { data, error } = await callRpc('execute_sql', {
           sql_query: `
             SELECT id, name, key, description, is_active, created_at 
             FROM app_authentication_keys 
@@ -99,7 +95,6 @@ const ApiKeyManagement: React.FC = () => {
           });
           setApiKeys([]);
         } else {
-          // Parse the rows from the result
           if (data && Array.isArray(data) && data.length > 0 && (data[0] as SqlQueryResult).rows) {
             const keys: ApiKey[] = (data[0] as SqlQueryResult).rows.map((row: any) => ({
               id: row.id,
@@ -131,7 +126,6 @@ const ApiKeyManagement: React.FC = () => {
     fetchApiKeys();
   }, []);
 
-  // Create a new API key
   const createApiKey = async () => {
     if (!newKeyName.trim()) {
       toast({
@@ -145,10 +139,8 @@ const ApiKeyManagement: React.FC = () => {
     setIsCreating(true);
     try {
       if (sqlExecutionError) {
-        // Try direct insert if SQL execution function is not available
         const newKey = crypto.randomUUID();
-        const { data, error } = await supabase
-          .from('app_authentication_keys')
+        const { data, error } = await fromTable('app_authentication_keys')
           .insert({
             name: newKeyName.trim(),
             description: newKeyDescription.trim() || null,
@@ -167,7 +159,6 @@ const ApiKeyManagement: React.FC = () => {
           description: 'API key created successfully',
         });
       } else {
-        // Call the create-app-key edge function
         const response = await supabase.functions.invoke('create-app-key', {
           body: { name: newKeyName.trim(), description: newKeyDescription.trim() || null }
         });
@@ -199,13 +190,10 @@ const ApiKeyManagement: React.FC = () => {
     }
   };
 
-  // Delete an API key
   const deleteApiKey = async (id: string) => {
     try {
       if (sqlExecutionError) {
-        // Try direct delete if SQL execution function is not available
-        const { error } = await supabase
-          .from('app_authentication_keys')
+        const { error } = await fromTable('app_authentication_keys')
           .delete()
           .eq('id', id);
 
@@ -213,7 +201,7 @@ const ApiKeyManagement: React.FC = () => {
           throw error;
         }
       } else {
-        const { error } = await (supabase.rpc as any)('execute_sql', {
+        const { error } = await callRpc('execute_sql', {
           sql_query: `DELETE FROM app_authentication_keys WHERE id = '${id}'`
         });
 
@@ -237,13 +225,10 @@ const ApiKeyManagement: React.FC = () => {
     }
   };
 
-  // Toggle API key status (active/inactive)
   const toggleApiKeyStatus = async (id: string, currentStatus: boolean) => {
     try {
       if (sqlExecutionError) {
-        // Try direct update if SQL execution function is not available
-        const { error } = await supabase
-          .from('app_authentication_keys')
+        const { error } = await fromTable('app_authentication_keys')
           .update({ is_active: !currentStatus })
           .eq('id', id);
 
@@ -251,7 +236,7 @@ const ApiKeyManagement: React.FC = () => {
           throw error;
         }
       } else {
-        const { error } = await (supabase.rpc as any)('execute_sql', {
+        const { error } = await callRpc('execute_sql', {
           sql_query: `
             UPDATE app_authentication_keys 
             SET is_active = ${!currentStatus} 
@@ -282,14 +267,12 @@ const ApiKeyManagement: React.FC = () => {
     }
   };
 
-  // Copy API key to clipboard
   const copyToClipboard = (key: string) => {
     navigator.clipboard.writeText(key);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Reset the dialog form
   const resetForm = () => {
     setNewKeyName('');
     setNewKeyDescription('');
@@ -297,7 +280,6 @@ const ApiKeyManagement: React.FC = () => {
     setIsDialogOpen(false);
   };
 
-  // Open Supabase dashboard
   const openSupabaseDashboard = () => {
     if (user?.supabaseUrl) {
       const dashboardUrl = user.supabaseUrl.replace('.supabase.co', '.supabase.co/project/sql');

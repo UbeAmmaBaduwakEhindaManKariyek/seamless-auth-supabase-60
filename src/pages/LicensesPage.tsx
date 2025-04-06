@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PlusCircle, Download, Search, Loader2, Trash2, Copy, Calendar } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { License } from '@/types/auth';
@@ -39,11 +38,7 @@ const LicensesPage: React.FC = () => {
       
       setIsLoading(true);
       try {
-        const client = getActiveClient();
-        
-        // Try to get licenses
-        const { data, error } = await client
-          .from('license_keys')
+        const { data, error } = await fromTable('license_keys')
           .select('*');
         
         if (error) {
@@ -57,15 +52,14 @@ const LicensesPage: React.FC = () => {
         }
         
         if (data && data.length > 0) {
-          // Convert the structure to match our License interface
           const formattedData: License[] = data.map(item => ({
             id: item.id,
             key: item.key,
             license_key: item.license_key,
             expiredate: item.expiredate,
-            user_id: null, // Since we don't have this in the table
-            created_at: new Date().toISOString(), // Use current date as fallback
-            is_active: !item.banned, // Invert banned status for is_active
+            user_id: null,
+            created_at: new Date().toISOString(),
+            is_active: !item.banned,
             admin_approval: item.admin_approval,
             banned: item.banned,
             hwid: item.hwid,
@@ -74,11 +68,10 @@ const LicensesPage: React.FC = () => {
             mobile_number: item.mobile_number,
             save_hwid: item.save_hwid,
             subscription: item.subscription,
-            username: undefined // Will be filled in later if we get user data
+            username: undefined
           }));
           setLicenses(formattedData);
         } else {
-          // Mock data if no records found
           setLicenses([
             {
               id: 1,
@@ -86,7 +79,7 @@ const LicensesPage: React.FC = () => {
               license_key: 'LICENSE-XXXX-YYYY-ZZZZ',
               user_id: 1,
               created_at: new Date().toISOString(),
-              expiredate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              expiredate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
               is_active: true,
               username: 'johndoe'
             },
@@ -96,7 +89,7 @@ const LicensesPage: React.FC = () => {
               license_key: 'LICENSE-AAAA-BBBB-CCCC',
               user_id: 2,
               created_at: new Date().toISOString(),
-              expiredate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
+              expiredate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
               is_active: true,
               username: 'janesmith'
             },
@@ -126,14 +119,11 @@ const LicensesPage: React.FC = () => {
     
     fetchLicenses();
     
-    // Fetch subscription types
     const fetchSubscriptionTypes = async () => {
       if (!isConnected) return;
       
       try {
-        const client = getActiveClient();
-        const { data, error } = await client
-          .from('subscription_types')
+        const { data, error } = await fromTable('subscription_types')
           .select('name')
           .eq('is_active', true);
         
@@ -147,7 +137,6 @@ const LicensesPage: React.FC = () => {
           setSubscriptions(types);
           if (types.length > 0) setSelectedSubscription(types[0]);
         } else {
-          // Mock data
           setSubscriptions(['Standard', 'Premium', 'Enterprise']);
           setSelectedSubscription('Standard');
         }
@@ -213,7 +202,6 @@ const LicensesPage: React.FC = () => {
   const generateRandomKey = () => {
     setIsGenerating(true);
     
-    // Generate a random key with format LICENSE-XXXX-YYYY-ZZZZ
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const parts = [];
     for (let i = 0; i < 3; i++) {
@@ -245,11 +233,9 @@ const LicensesPage: React.FC = () => {
     setIsSaving(true);
     try {
       if (isConnected) {
-        const client = getActiveClient();
         const expiredate = newLicenseExpiry ? new Date(newLicenseExpiry).toISOString().split('T')[0] : null;
         
-        const { data, error } = await client
-          .from('license_keys')
+        const { data, error } = await fromTable('license_keys')
           .insert({
             license_key: newLicenseKey,
             expiredate: expiredate,
@@ -291,7 +277,6 @@ const LicensesPage: React.FC = () => {
           setLicenses(prev => [newLicense, ...prev]);
         }
       } else {
-        // Mock creation
         const newLicense: License = {
           id: Math.floor(Math.random() * 1000) + 100,
           license_key: newLicenseKey,
@@ -311,7 +296,6 @@ const LicensesPage: React.FC = () => {
         description: "The license key has been created successfully"
       });
       
-      // Reset form
       setNewLicenseKey('');
       setNewLicenseExpiry('');
       setSelectedSubscription(subscriptions[0] || '');
@@ -349,10 +333,7 @@ const LicensesPage: React.FC = () => {
     }
     
     try {
-      const client = getActiveClient();
-      
-      const { error } = await client
-        .from('license_keys')
+      const { error } = await fromTable('license_keys')
         .delete()
         .eq('id', id);
       

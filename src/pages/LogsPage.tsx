@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Download, Search, Loader2, TrashIcon } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -37,9 +36,7 @@ const LogsPage: React.FC = () => {
       
       setIsLoading(true);
       try {
-        const client = getActiveClient();
-        const { data, error } = await client
-          .from('login_logs')
+        const { data, error } = await fromTable('login_logs')
           .select('*')
           .order('timestamp', { ascending: false })
           .limit(100);
@@ -57,7 +54,6 @@ const LogsPage: React.FC = () => {
         if (data && data.length > 0) {
           setLogs(data as LogEntry[]);
         } else {
-          // Mock data if no records found
           setLogs([
             {
               id: 1,
@@ -161,9 +157,7 @@ const LogsPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const client = getActiveClient();
-      const { error } = await client
-        .from('login_logs')
+      const { error } = await fromTable('login_logs')
         .delete()
         .gt('id', 0); // Delete all logs
       

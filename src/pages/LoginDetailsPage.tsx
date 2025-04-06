@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Download, Search, Loader2 } from 'lucide-react';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { getActiveClient, fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -45,9 +44,7 @@ const LoginDetailsPage: React.FC = () => {
       
       setIsLoading(true);
       try {
-        const client = getActiveClient();
-        const { data, error } = await client
-          .from('login_details')
+        const { data, error } = await fromTable('login_details')
           .select('*')
           .order('login_time', { ascending: false })
           .limit(100);
@@ -65,7 +62,6 @@ const LoginDetailsPage: React.FC = () => {
         if (data && data.length > 0) {
           setLoginDetails(data as LoginDetail[]);
         } else {
-          // Mock data if no records found
           setLoginDetails([
             {
               id: 1,
