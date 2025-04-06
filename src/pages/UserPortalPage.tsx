@@ -91,44 +91,41 @@ const UserPortalPage = () => {
     setLoading(true);
     
     try {
-      // Check if user exists in the portal auth table
-      const { data, error } = await (supabase as any)
-        .from('user_portal_auth')
+      // Check users table for credentials
+      const { data: userData, error: userError } = await (supabase as any)
+        .from('users')
         .select('*')
         .eq('username', authForm.username)
         .eq('password', authForm.password)
         .single();
       
-      if (error || !data) {
-        // Try checking license_keys table directly
-        const { data: licenseData, error: licenseError } = await (supabase as any)
-          .from('license_keys')
-          .select('*')
-          .eq('license_key', authForm.license_key)
-          .eq('mobile_number', authForm.username)
-          .single();
-          
-        if (licenseError || !licenseData) {
-          setAuthError('Invalid username, password, or license key');
-          setLoading(false);
-          return;
-        }
+      if (userError || !userData) {
+        setAuthError('Invalid username or password');
+        setLoading(false);
+        return;
+      }
         
-        // User authenticated via license_keys, create portal auth entry
+      // Update last login time in user_portal_auth if exists or create
+      const { data: existingAuth } = await (supabase as any)
+        .from('user_portal_auth')
+        .select('id')
+        .eq('username', authForm.username)
+        .maybeSingle();
+        
+      if (existingAuth?.id) {
+        await (supabase as any)
+          .from('user_portal_auth')
+          .update({ last_login: new Date().toISOString() })
+          .eq('id', existingAuth.id);
+      } else {
         await (supabase as any)
           .from('user_portal_auth')
           .insert({
             username: authForm.username,
             password: authForm.password,
-            license_key: authForm.license_key,
+            license_key: userData.key || ''
           });
       }
-      
-      // Update last login time
-      await (supabase as any)
-        .from('user_portal_auth')
-        .update({ last_login: new Date().toISOString() })
-        .eq('username', authForm.username);
       
       // Set authenticated state
       setIsAuthenticated(true);
@@ -137,7 +134,7 @@ const UserPortalPage = () => {
       setResetForm(prev => ({
         ...prev,
         username: authForm.username,
-        license_key: authForm.license_key
+        license_key: userData.key || ''
       }));
       
       toast({
@@ -164,9 +161,9 @@ const UserPortalPage = () => {
     setLoading(true);
     
     try {
-      // Check if username already exists in portal auth
+      // Check if username already exists in users table
       const { data: existingUser, error: checkUserError } = await (supabase as any)
-        .from('user_portal_auth')
+        .from('users')
         .select('username')
         .eq('username', authForm.username)
         .single();
@@ -177,7 +174,7 @@ const UserPortalPage = () => {
         return;
       }
       
-      // Verify license key exists
+      // Verify license key exists in license_keys table
       const { data: licenseData, error: licenseError } = await (supabase as any)
         .from('license_keys')
         .select('*')
@@ -190,18 +187,36 @@ const UserPortalPage = () => {
         return;
       }
       
-      // Create new user
+      // Create new user in users table
       const { error: registerError } = await (supabase as any)
+        .from('users')
+        .insert({
+          username: authForm.username,
+          password: authForm.password,
+          key: authForm.license_key,
+          subscription: licenseData.subscription,
+          expiredate: licenseData.expiredate,
+          save_hwid: licenseData.save_hwid,
+          banned: licenseData.banned,
+          hwid_reset_count: licenseData.hwid_reset_count,
+          max_devices: licenseData.max_devices,
+          hwid: licenseData.hwid,
+          mobile_number: licenseData.mobile_number,
+          admin_approval: licenseData.admin_approval
+        });
+        
+      if (registerError) {
+        throw registerError;
+      }
+      
+      // Create entry in portal auth table
+      await (supabase as any)
         .from('user_portal_auth')
         .insert({
           username: authForm.username,
           password: authForm.password,
           license_key: authForm.license_key,
         });
-        
-      if (registerError) {
-        throw registerError;
-      }
       
       // Set authenticated state
       setIsAuthenticated(true);
@@ -237,29 +252,21 @@ const UserPortalPage = () => {
 
     try {
       setLoading(true);
-      const { data: licenseData, error: licenseError } = await (supabase as any)
-        .from('license_keys')
-        .select('*')
-        .eq('license_key', resetForm.license_key)
-        .single();
+      
+      // Reset HWID for both users and license_keys table
+      const { error: userUpdateError } = await (supabase as any)
+        .from('users')
+        .update({ hwid: [] })
+        .eq('username', resetForm.username)
+        .eq('key', resetForm.license_key);
 
-      if (licenseError || !licenseData) {
-        toast({
-          title: 'Invalid license',
-          description: 'The license key you entered is not valid',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      const { error: updateError } = await (supabase as any)
+      const { error: licenseUpdateError } = await (supabase as any)
         .from('license_keys')
         .update({ hwid: [] })
         .eq('license_key', resetForm.license_key);
 
-      if (updateError) {
-        throw updateError;
+      if (userUpdateError && licenseUpdateError) {
+        throw userUpdateError || licenseUpdateError;
       }
 
       toast({
@@ -444,19 +451,6 @@ const UserPortalPage = () => {
                         type="password"
                         placeholder="Enter your password"
                         value={authForm.password}
-                        onChange={(e) => handleInputChange(e, 'auth')}
-                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="login-license">License Key</Label>
-                      <Input
-                        id="login-license"
-                        name="license_key"
-                        placeholder="Enter your license key"
-                        value={authForm.license_key}
                         onChange={(e) => handleInputChange(e, 'auth')}
                         className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
                         required

@@ -69,35 +69,16 @@ serve(async (req) => {
       );
     }
     
-    // Now check the user credentials
+    // Now check the user credentials in users table first
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("*")
       .eq("username", username)
-      .eq("password", password)  // Note: In production, use proper password hashing
+      .eq("password", password)
       .single();
       
-    if (userError || !userData) {
-      // If not found in users table, try license_keys table
-      const { data: licenseData, error: licenseError } = await supabase
-        .from("license_keys")
-        .select("*")
-        .eq("mobile_number", username)  // Assuming mobile_number is used as username
-        .eq("license_key", password)    // Assuming license_key is used as password
-        .single();
-        
-      if (licenseError || !licenseData) {
-        console.error("Authentication failed:", userError || licenseError);
-        return new Response(
-          JSON.stringify({ success: false, error: "Invalid credentials" }),
-          { 
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401 
-          }
-        );
-      }
-      
-      // License key authentication successful
+    if (!userError && userData) {
+      // User found in users table
       // Log the successful login
       await supabase.from("login_logs").insert({
         username,
@@ -109,11 +90,11 @@ serve(async (req) => {
           success: true,
           data: {
             username,
-            subscription: licenseData.subscription,
-            expire_date: licenseData.expiredate,
-            hwid: licenseData.hwid,
-            banned: licenseData.banned,
-            save_hwid: licenseData.save_hwid,
+            subscription: userData.subscription,
+            expire_date: userData.expiredate,
+            hwid: userData.hwid,
+            banned: userData.banned,
+            save_hwid: userData.save_hwid,
             token: crypto.randomUUID(),  // Generate a session token
           }
         }),
@@ -124,7 +105,26 @@ serve(async (req) => {
       );
     }
     
-    // User authentication successful
+    // If not found in users table, try license_keys table
+    const { data: licenseData, error: licenseError } = await supabase
+      .from("license_keys")
+      .select("*")
+      .eq("mobile_number", username)  // Assuming mobile_number is used as username
+      .eq("license_key", password)    // Assuming license_key is used as password
+      .single();
+      
+    if (licenseError || !licenseData) {
+      console.error("Authentication failed:", userError || licenseError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid credentials" }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401 
+        }
+      );
+    }
+    
+    // License key authentication successful
     // Log the successful login
     await supabase.from("login_logs").insert({
       username,
@@ -136,11 +136,11 @@ serve(async (req) => {
         success: true,
         data: {
           username,
-          subscription: userData.subscription,
-          expire_date: userData.expiredate,
-          hwid: userData.hwid,
-          banned: userData.banned,
-          save_hwid: userData.save_hwid,
+          subscription: licenseData.subscription,
+          expire_date: licenseData.expiredate,
+          hwid: licenseData.hwid,
+          banned: licenseData.banned,
+          save_hwid: licenseData.save_hwid,
           token: crypto.randomUUID(),  // Generate a session token
         }
       }),
