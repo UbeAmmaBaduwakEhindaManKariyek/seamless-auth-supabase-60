@@ -339,66 +339,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: true
         };
         
+        // First, save to the main project's Supabase database
+        if (user && user.username) {
+          const projectSupabase = supabase; // Use the default project Supabase client
+          
+          const { error: updateError } = await projectSupabase
+            .from('web_login_regz')
+            .update({
+              supabase_url: url,
+              supabase_api_key: key
+            })
+            .eq('username', user.username);
+            
+          if (updateError) {
+            console.error("Failed to update credentials in project Supabase:", updateError);
+            toast({
+              title: "Update Failed",
+              description: "Failed to save your Supabase credentials to the project database",
+              variant: "destructive",
+            });
+          } else {
+            console.log("Successfully updated credentials in project Supabase");
+          }
+        }
+        
+        // Then try to save to the user's Supabase as well if connected
         if (user && user.username) {
           try {
             const customClient = createCustomClient(url, key);
             if (!customClient) {
               console.error("Failed to create custom Supabase client");
-              return false;
-            }
-            
-            const { error: checkTableError } = await customClient
-              .from('web_login_regz')
-              .select('count', { count: 'exact', head: true });
-              
-            if (checkTableError) {
-              console.log("web_login_regz table might not exist, attempting to create it");
-              
-              try {
-                const { error: createTableError } = await executeRawSql(`
-                  CREATE TABLE IF NOT EXISTS web_login_regz (
-                    id SERIAL PRIMARY KEY,
-                    username TEXT NOT NULL,
-                    email TEXT NOT NULL,
-                    password TEXT NOT NULL,
-                    subscription_type TEXT NOT NULL,
-                    supabase_url TEXT,
-                    supabase_api_key TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-                  )
-                `);
+            } else {
+              // Check if web_login_regz table exists in user's Supabase
+              const { error: checkTableError } = await customClient
+                .from('web_login_regz')
+                .select('count', { count: 'exact', head: true });
                 
-                if (createTableError) {
-                  console.error("Failed to create web_login_regz table:", createTableError);
+              if (checkTableError) {
+                console.log("web_login_regz table might not exist in user's Supabase, attempting to create it");
+                
+                try {
+                  const { error: createTableError } = await executeRawSql(`
+                    CREATE TABLE IF NOT EXISTS web_login_regz (
+                      id SERIAL PRIMARY KEY,
+                      username TEXT NOT NULL,
+                      email TEXT NOT NULL,
+                      password TEXT NOT NULL,
+                      subscription_type TEXT NOT NULL,
+                      supabase_url TEXT,
+                      supabase_api_key TEXT,
+                      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+                    )
+                  `);
+                  
+                  if (createTableError) {
+                    console.error("Failed to create web_login_regz table in user's Supabase:", createTableError);
+                  }
+                } catch (error) {
+                  console.error("Error creating web_login_regz table in user's Supabase:", error);
                 }
-              } catch (error) {
-                console.error("Error creating web_login_regz table:", error);
+              }
+              
+              // Insert or update user's credentials in their own Supabase
+              const { error: upsertError } = await customClient.from('web_login_regz').upsert({
+                username: user.username,
+                email: user.email || 'admin@example.com',
+                password: 'encrypted_password', // Note: storing actual passwords is not secure
+                subscription_type: 'user',
+                supabase_url: url,
+                supabase_api_key: key,
+                created_at: new Date().toISOString()
+              }, { 
+                onConflict: 'username' 
+              });
+              
+              if (upsertError) {
+                console.error("Failed to save credentials to user's web_login_regz:", upsertError);
+              } else {
+                console.log("Successfully saved credentials to user's web_login_regz table");
               }
             }
-            
-            const { error: upsertError } = await customClient.from('web_login_regz').upsert({
-              username: user.username,
-              email: user.email || 'admin@example.com',
-              password: 'encrypted_password',
-              subscription_type: 'admin',
-              supabase_url: url,
-              supabase_api_key: key,
-              created_at: new Date().toISOString()
-            }, { 
-              onConflict: 'username' 
-            });
-            
-            if (upsertError) {
-              console.error("Failed to save credentials to web_login_regz:", upsertError);
-            } else {
-              console.log("Successfully saved credentials to web_login_regz table");
-            }
           } catch (error) {
-            console.error("Error saving to web_login_regz:", error);
+            console.error("Error saving to user's web_login_regz:", error);
           }
         }
         
+        // Save updated user to local storage
         saveUserToStorage(updatedUser);
+        
         toast({
           title: "Supabase configuration saved",
           description: "Your Supabase URL and API key have been saved and connected successfully",
