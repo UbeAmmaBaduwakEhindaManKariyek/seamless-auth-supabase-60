@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { fromTable } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserPortalConfig {
@@ -51,14 +51,12 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      // Using type assertion to bypass typechecking for the dynamic table name
-      const { data, error } = await (supabase as any)
-        .from('user_portal_config')
+      const { data, error } = await fromTable('user_portal_config')
         .select('*')
         .eq('username', user.username)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         throw error;
       }
 
@@ -108,15 +106,11 @@ const UserPortalSettings = () => {
       let response;
       
       if (portalConfig.id) {
-        // Using type assertion to bypass typechecking for the dynamic table name
-        response = await (supabase as any)
-          .from('user_portal_config')
+        response = await fromTable('user_portal_config')
           .update(portalData)
           .eq('id', portalConfig.id);
       } else {
-        // Using type assertion to bypass typechecking for the dynamic table name
-        response = await (supabase as any)
-          .from('user_portal_config')
+        response = await fromTable('user_portal_config')
           .insert(portalData);
       }
 

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, XCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { executeRawSql } from '@/integrations/supabase/client';
 
 const InstallTables = () => {
   const { toast } = useToast();
@@ -73,8 +73,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        // Using executeRawSql function to bypass type checking
-        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
+        const { error } = await executeRawSql(sql);
         if (error) throw error;
       }
       return { message: 'Basic tables installed successfully' };
@@ -106,8 +105,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        // Using executeRawSql function to bypass type checking
-        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
+        const { error } = await executeRawSql(sql);
         if (error) throw error;
       }
       return { message: 'Login tracking tables installed successfully' };
@@ -140,14 +138,53 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        // Using executeRawSql function to bypass type checking
-        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
+        const { error } = await executeRawSql(sql);
         if (error) throw error;
       }
       return { message: 'API tables installed successfully' };
     } catch (error: any) {
       console.error("Error installing API tables:", error);
       throw new Error(`Failed to install API tables: ${error.message}`);
+    }
+  };
+
+  const installUserPortalTables = async () => {
+    try {
+      const createUserPortalTableSQL = `
+        CREATE TABLE IF NOT EXISTS user_portal_config (
+          id SERIAL PRIMARY KEY,
+          username TEXT NOT NULL,
+          enabled BOOLEAN DEFAULT false,
+          custom_path TEXT NOT NULL,
+          download_url TEXT,
+          application_name TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+          CONSTRAINT unique_username_path UNIQUE (username, custom_path)
+        );
+        
+        CREATE TABLE IF NOT EXISTS user_portal_auth (
+          id SERIAL PRIMARY KEY,
+          username TEXT NOT NULL,
+          password TEXT NOT NULL,
+          license_key TEXT NOT NULL REFERENCES license_keys(license_key),
+          last_login TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+        );
+      `;
+      
+      const { error } = await executeRawSql(createUserPortalTableSQL);
+      
+      if (error) {
+        throw error;
+      }
+      
+      return { 
+        success: true, 
+        message: "User portal tables created successfully" 
+      };
+    } catch (error: any) {
+      console.error("Error creating user portal tables:", error);
+      throw new Error(`Failed to install user portal tables: ${error.message}`);
     }
   };
 
@@ -170,11 +207,7 @@ const InstallTables = () => {
     {
       name: "User Portal Table",
       description: "Install table for user portal configuration",
-      action: async () => {
-        const { data, error } = await supabase.functions.invoke("create-portal-table");
-        if (error) throw new Error(`Error creating user portal table: ${error.message}`);
-        return data;
-      },
+      action: installUserPortalTables,
     },
   ];
 

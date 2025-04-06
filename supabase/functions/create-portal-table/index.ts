@@ -21,9 +21,35 @@ serve(async (req) => {
         enabled BOOLEAN DEFAULT false,
         custom_path TEXT NOT NULL,
         download_url TEXT,
+        application_name TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
         CONSTRAINT unique_username_path UNIQUE (username, custom_path)
       );
+      
+      CREATE TABLE IF NOT EXISTS user_portal_auth (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        license_key TEXT NOT NULL,
+        last_login TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+      );
+      
+      -- Add foreign key if license_keys table exists
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'license_keys') THEN
+          IF NOT EXISTS (
+            SELECT FROM information_schema.constraint_column_usage 
+            WHERE table_name = 'user_portal_auth' AND column_name = 'license_key'
+          ) THEN
+            ALTER TABLE user_portal_auth 
+            ADD CONSTRAINT user_portal_auth_license_key_fkey 
+            FOREIGN KEY (license_key) REFERENCES license_keys(license_key);
+          END IF;
+        END IF;
+      END
+      $$;
     `;
 
     // Execute SQL to create the tables using the execute_sql function
@@ -37,7 +63,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "User portal configuration table created successfully" 
+        message: "User portal tables created successfully" 
       }),
       { 
         headers: { 
