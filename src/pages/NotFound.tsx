@@ -29,24 +29,60 @@ const NotFound = () => {
   const checkPortalPath = async (username: string, customPath: string) => {
     setLoading(true);
     try {
-      // Check if this portal exists
-      const { data, error } = await supabase
+      // First check in user_portal_config table
+      const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
         .select('*')
         .eq('username', username)
         .eq('custom_path', customPath)
         .eq('enabled', true)
         .maybeSingle();
-
-      if (data) {
-        setIsPortalPage(true);
-        setPortalDetails(data);
         
-        // If portal exists, redirect to the correct URL format
-        navigate(`/portal/${username}/${customPath}`);
+      if (portalData) {
+        // Portal found in user_portal_config
+        setIsPortalPage(true);
+        setPortalDetails(portalData);
+        
+        // If portal exists, make sure URL is correct
+        if (location.pathname !== `/portal/${username}/${customPath}`) {
+          navigate(`/portal/${username}/${customPath}`);
+        }
+        return;
       }
+      
+      // If not found in user_portal_config, check web_login_regz table
+      const { data: userData, error: userError } = await supabase
+        .from('web_login_regz')
+        .select('username, portal_settings')
+        .eq('username', username)
+        .maybeSingle();
+        
+      if (userData && 
+          userData.portal_settings && 
+          userData.portal_settings.custom_path === customPath &&
+          userData.portal_settings.enabled === true) {
+        
+        // Portal found in web_login_regz portal_settings
+        setIsPortalPage(true);
+        setPortalDetails({
+          ...userData.portal_settings,
+          username: userData.username
+        });
+        
+        // If portal exists, make sure URL is correct
+        if (location.pathname !== `/portal/${username}/${customPath}`) {
+          navigate(`/portal/${username}/${customPath}`);
+        }
+        return;
+      }
+      
+      // Portal not found in either table or is disabled
+      setIsPortalPage(false);
+      setPortalDetails(null);
     } catch (error) {
       console.error('Error checking portal path:', error);
+      setIsPortalPage(false);
+      setPortalDetails(null);
     } finally {
       setLoading(false);
     }

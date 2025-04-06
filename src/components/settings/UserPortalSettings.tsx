@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { fromTable } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserPortalConfig {
@@ -51,25 +51,51 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await fromTable('user_portal_config')
+      // First try to get from user_portal_config table
+      const { data: portalData, error: portalError } = await supabase
+        .from('user_portal_config')
         .select('*')
         .eq('username', user.username)
         .maybeSingle();
 
-      if (error) {
-        throw error;
+      if (portalError) {
+        console.error('Error fetching from user_portal_config:', portalError);
       }
 
-      if (data) {
+      if (portalData) {
+        // If found in user_portal_config, use that data
         setPortalConfig({
-          id: data.id,
-          enabled: data.enabled,
-          custom_path: data.custom_path,
-          download_url: data.download_url || '',
-          application_name: data.application_name || '',
-          created_at: data.created_at,
-          username: data.username
+          id: portalData.id,
+          enabled: portalData.enabled,
+          custom_path: portalData.custom_path,
+          download_url: portalData.download_url || '',
+          application_name: portalData.application_name || '',
+          created_at: portalData.created_at,
+          username: portalData.username
         });
+      } else {
+        // If not found in user_portal_config, check web_login_regz for portal settings
+        const { data: userData, error: userError } = await supabase
+          .from('web_login_regz')
+          .select('*')
+          .eq('username', user.username)
+          .maybeSingle();
+
+        if (userError) {
+          throw userError;
+        }
+
+        if (userData && userData.portal_settings) {
+          // If user has portal settings in web_login_regz, use those
+          const settings = userData.portal_settings;
+          setPortalConfig({
+            enabled: settings.enabled || false,
+            custom_path: settings.custom_path || '',
+            download_url: settings.download_url || '',
+            application_name: settings.application_name || '',
+            username: user.username
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching portal configuration:', error);
@@ -95,30 +121,59 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      const portalData = {
-        username: user.username,
+      const portalSettings = {
         enabled: portalConfig.enabled,
         custom_path: portalConfig.custom_path.trim(),
         download_url: portalConfig.download_url.trim(),
         application_name: portalConfig.application_name?.trim() || '',
       };
 
-      console.log('Saving portal data:', portalData);
+      console.log('Saving portal data:', portalSettings);
 
+      // Save to both user_portal_config for backward compatibility
+      // and to web_login_regz for the integrated approach
+      
+      // 1. First save to user_portal_config
       let response;
       
       if (portalConfig.id) {
-        response = await fromTable('user_portal_config')
-          .update(portalData)
+        response = await supabase
+          .from('user_portal_config')
+          .update({
+            username: user.username,
+            enabled: portalConfig.enabled,
+            custom_path: portalConfig.custom_path.trim(),
+            download_url: portalConfig.download_url.trim(),
+            application_name: portalConfig.application_name?.trim() || '',
+          })
           .eq('id', portalConfig.id);
       } else {
-        response = await fromTable('user_portal_config')
-          .insert(portalData);
+        response = await supabase
+          .from('user_portal_config')
+          .insert({
+            username: user.username,
+            enabled: portalConfig.enabled,
+            custom_path: portalConfig.custom_path.trim(),
+            download_url: portalConfig.download_url.trim(),
+            application_name: portalConfig.application_name?.trim() || '',
+          });
       }
 
       if (response.error) {
-        console.error('Error from Supabase:', response.error);
-        throw response.error;
+        console.error('Error from Supabase (user_portal_config):', response.error);
+      }
+
+      // 2. Then update web_login_regz with the portal settings
+      const { error: updateError } = await supabase
+        .from('web_login_regz')
+        .update({ 
+          portal_settings: portalSettings 
+        })
+        .eq('username', user.username);
+
+      if (updateError) {
+        console.error('Error updating web_login_regz:', updateError);
+        throw updateError;
       }
 
       toast({
@@ -126,7 +181,7 @@ const UserPortalSettings = () => {
         description: 'User portal configuration saved successfully.',
       });
       
-      fetchPortalConfig();
+      fetchPortalConfig(); // Refresh the data
     } catch (error) {
       console.error('Error saving portal configuration:', error);
       toast({

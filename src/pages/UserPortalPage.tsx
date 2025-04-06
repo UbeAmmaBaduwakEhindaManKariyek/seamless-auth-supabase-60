@@ -45,22 +45,38 @@ const UserPortalPage = () => {
     }
 
     try {
-      const { data, error } = await (supabase as any)
+      // First try to get portal config from user_portal_config table
+      const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
         .select('*')
         .eq('username', ownerUsername)
         .eq('custom_path', custom_path)
         .eq('enabled', true)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        throw error;
+      if (portalData) {
+        setPortalConfig(portalData);
+        setLoading(false);
+        return;
       }
-
-      if (!data) {
-        setError('Portal not found or is disabled');
+      
+      // If not found in user_portal_config, check web_login_regz
+      const { data: userData, error: userError } = await supabase
+        .from('web_login_regz')
+        .select('username, portal_settings')
+        .eq('username', ownerUsername)
+        .maybeSingle();
+        
+      if (userData?.portal_settings?.custom_path === custom_path && 
+          userData?.portal_settings?.enabled === true) {
+        
+        // Format the portal config from web_login_regz data
+        setPortalConfig({
+          ...userData.portal_settings,
+          username: userData.username
+        });
       } else {
-        setPortalConfig(data);
+        setError('Portal not found or is disabled');
       }
     } catch (error) {
       console.error('Error fetching portal:', error);

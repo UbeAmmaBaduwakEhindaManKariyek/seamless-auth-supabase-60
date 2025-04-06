@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -51,7 +50,81 @@ serve(async (req) => {
       
       console.log(`Login attempt for username: ${username}`);
       
-      // First check if user exists in users table directly
+      // First check web_login_regz table (integrated auth)
+      const { data: webLoginUser, error: webLoginError } = await supabase
+        .from("web_login_regz")
+        .select("*")
+        .eq("username", username)
+        .eq("password", password)
+        .single();
+      
+      if (webLoginUser) {
+        console.log("User found in web_login_regz table");
+        
+        // Check if user has a license key in their properties
+        let licenseKey = license_key || webLoginUser.license_key;
+        let licenseData = null;
+        
+        if (licenseKey) {
+          // Get license details
+          const { data: licenseInfo, error: licenseError } = await supabase
+            .from("license_keys")
+            .select("*")
+            .eq("license_key", licenseKey)
+            .maybeSingle();
+            
+          if (!licenseError && licenseInfo) {
+            licenseData = licenseInfo;
+          }
+        }
+        
+        // Create or update portal auth entry
+        const { data: existingAuth } = await supabase
+          .from("user_portal_auth")
+          .select("id")
+          .eq("username", username)
+          .maybeSingle();
+          
+        if (existingAuth?.id) {
+          await supabase
+            .from("user_portal_auth")
+            .update({ 
+              last_login: new Date().toISOString(),
+              license_key: licenseKey || null
+            })
+            .eq("id", existingAuth.id);
+        } else if (licenseKey) {
+          await supabase
+            .from("user_portal_auth")
+            .insert({
+              username: username,
+              password: password,
+              license_key: licenseKey,
+              last_login: new Date().toISOString()
+            });
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            data: {
+              username: webLoginUser.username,
+              email: webLoginUser.email,
+              subscription: licenseData?.subscription || webLoginUser.subscription_type,
+              expiredate: licenseData?.expiredate || null,
+              banned: licenseData?.banned || false,
+              token: crypto.randomUUID(),
+              license_key: licenseKey || null
+            }
+          }),
+          { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200 
+          }
+        );
+      }
+      
+      // If not found in web_login_regz, check users table 
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("*")
