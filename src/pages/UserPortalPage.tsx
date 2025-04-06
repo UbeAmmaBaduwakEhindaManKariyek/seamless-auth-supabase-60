@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ const UserPortalPage = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_portal_config')
         .select('*')
         .eq('username', username)
@@ -78,7 +77,6 @@ const UserPortalPage = () => {
 
     try {
       setLoading(true);
-      // First verify the license belongs to this user
       const { data: licenseData, error: licenseError } = await supabase
         .from('license_keys')
         .select('*')
@@ -95,7 +93,6 @@ const UserPortalPage = () => {
         return;
       }
 
-      // Reset the HWID by clearing the array
       const { error: updateError } = await supabase
         .from('license_keys')
         .update({ hwid: [] })

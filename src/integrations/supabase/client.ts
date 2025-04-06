@@ -13,20 +13,20 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 // Custom client instance for user-specific connections
-let activeClient: SupabaseClient<Database> = supabase;
+let activeClient: SupabaseClient = supabase;
 
 /**
  * Creates a custom Supabase client with the provided URL and key
  */
-export const createCustomClient = (url: string, key: string): SupabaseClient<Database> => {
-  activeClient = createClient<Database>(url, key);
+export const createCustomClient = (url: string, key: string): SupabaseClient => {
+  activeClient = createClient(url, key);
   return activeClient;
 };
 
 /**
  * Gets the active Supabase client (either the default or a custom one)
  */
-export const getActiveClient = (): SupabaseClient<Database> => {
+export const getActiveClient = (): SupabaseClient => {
   return activeClient;
 };
 
@@ -36,7 +36,7 @@ export const getActiveClient = (): SupabaseClient<Database> => {
 export const executeRawSql = async (sqlQuery: string): Promise<{ data: any; error: any }> => {
   try {
     // Using any to bypass type checking for the RPC function
-    const { data, error } = await (activeClient.rpc as any)('execute_sql', { sql_query: sqlQuery });
+    const { data, error } = await activeClient.rpc('execute_sql', { sql_query: sqlQuery });
     
     if (error && error.message?.includes('Could not find the function')) {
       return { 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase, getActiveClient } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserPortalConfig {
@@ -49,8 +48,7 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      const supabase = getActiveClient();
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_portal_config')
         .select('*')
         .eq('username', user.username)
@@ -61,7 +59,14 @@ const UserPortalSettings = () => {
       }
 
       if (data) {
-        setPortalConfig(data);
+        setPortalConfig({
+          id: data.id,
+          enabled: data.enabled,
+          custom_path: data.custom_path,
+          download_url: data.download_url || '',
+          created_at: data.created_at,
+          username: data.username
+        });
       }
     } catch (error) {
       console.error('Error fetching portal configuration:', error);
@@ -87,8 +92,6 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      const supabase = getActiveClient();
-      
       const portalData = {
         username: user.username,
         enabled: portalConfig.enabled,
@@ -99,14 +102,12 @@ const UserPortalSettings = () => {
       let response;
       
       if (portalConfig.id) {
-        // Update existing record
-        response = await supabase
+        response = await (supabase as any)
           .from('user_portal_config')
           .update(portalData)
           .eq('id', portalConfig.id);
       } else {
-        // Insert new record
-        response = await supabase
+        response = await (supabase as any)
           .from('user_portal_config')
           .insert(portalData);
       }
@@ -120,7 +121,6 @@ const UserPortalSettings = () => {
         description: 'User portal configuration saved successfully.',
       });
       
-      // Refresh data after save
       fetchPortalConfig();
     } catch (error) {
       console.error('Error saving portal configuration:', error);

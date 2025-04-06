@@ -72,7 +72,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        const { error } = await supabase.rpc('execute_sql', { sql_query: sql });
+        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }
       return { message: 'Basic tables installed successfully' };
@@ -104,7 +104,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        const { error } = await supabase.rpc('execute_sql', { sql_query: sql });
+        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }
       return { message: 'Login tracking tables installed successfully' };
@@ -137,7 +137,7 @@ const InstallTables = () => {
 
     try {
       for (const sql of sqlCommands) {
-        const { error } = await supabase.rpc('execute_sql', { sql_query: sql });
+        const { error } = await (supabase as any).rpc('execute_sql', { sql_query: sql });
         if (error) throw error;
       }
       return { message: 'API tables installed successfully' };
