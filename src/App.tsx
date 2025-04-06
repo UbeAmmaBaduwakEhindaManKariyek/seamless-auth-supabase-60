@@ -25,6 +25,7 @@ import AppOpenPage from "./pages/AppOpenPage";
 import EmuUsersPage from "./pages/EmuUsersPage";
 import ApiDocsPage from "./pages/ApiDocsPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
+import UserPortalPage from "./pages/UserPortalPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
           
           <Route path="/" element={
             <ProtectedRoute>

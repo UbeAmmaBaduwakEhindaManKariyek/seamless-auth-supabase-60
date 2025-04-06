@@ -5,6 +5,7 @@ import SupabaseSetup from '@/components/supabase/SupabaseSetup';
 import { useAuth } from '@/contexts/AuthContext';
 import ApiKeyManagement from '@/components/api/ApiKeyManagement';
 import AppVersionManager from '@/components/settings/AppVersionManager';
+import UserPortalSettings from '@/components/settings/UserPortalSettings';
 import InstallTables from '@/components/supabase/InstallTables';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -16,10 +17,11 @@ const SettingsPage = () => {
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
       
       <Tabs defaultValue="connection" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="connection">Supabase Connection</TabsTrigger>
           <TabsTrigger value="database" disabled={!isConnected}>Database Setup</TabsTrigger>
           <TabsTrigger value="api" disabled={!isConnected}>API & Version</TabsTrigger>
+          <TabsTrigger value="portal" disabled={!isConnected}>User Portal</TabsTrigger>
         </TabsList>
         
         <TabsContent value="connection" className="space-y-6">
@@ -48,6 +50,12 @@ const SettingsPage = () => {
               <AppVersionManager />
               <ApiKeyManagement />
             </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="portal" className="space-y-6">
+          {isConnected && (
+            <UserPortalSettings />
           )}
         </TabsContent>
       </Tabs>
