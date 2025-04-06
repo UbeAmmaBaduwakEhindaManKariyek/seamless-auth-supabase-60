@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { PortalSettings, WebLoginRegz } from '@/types/auth';
 
 interface UserPortalConfig {
   id?: number;
@@ -17,20 +17,6 @@ interface UserPortalConfig {
   application_name?: string;
   created_at?: string;
   username?: string;
-}
-
-// Define the web_login_regz table structure to satisfy TypeScript
-interface WebLoginRegz {
-  id: number;
-  username: string;
-  password: string;
-  email: string;
-  subscription_type: string;
-  created_at: string;
-  supabase_url: string | null;
-  supabase_api_key: string | null;
-  license_key: string | null;
-  portal_settings: UserPortalConfig | null;
 }
 
 const UserPortalSettings = () => {
@@ -99,9 +85,12 @@ const UserPortalSettings = () => {
           throw userError;
         }
 
-        if (userData && userData.portal_settings) {
+        // Type assertion to handle portal_settings property
+        const userDataWithPortal = userData as WebLoginRegz;
+        
+        if (userDataWithPortal && userDataWithPortal.portal_settings) {
           // If user has portal settings in web_login_regz, use those
-          const settings = userData.portal_settings;
+          const settings = userDataWithPortal.portal_settings;
           setPortalConfig({
             enabled: settings.enabled || false,
             custom_path: settings.custom_path || '',
@@ -135,7 +124,7 @@ const UserPortalSettings = () => {
 
     setLoading(true);
     try {
-      const portalSettings = {
+      const portalSettings: PortalSettings = {
         enabled: portalConfig.enabled,
         custom_path: portalConfig.custom_path.trim(),
         download_url: portalConfig.download_url.trim(),
@@ -178,11 +167,12 @@ const UserPortalSettings = () => {
       }
 
       // 2. Then update web_login_regz with the portal settings
+      // Use a type assertion to handle the portal_settings property
       const { error: updateError } = await supabase
         .from('web_login_regz')
         .update({ 
           portal_settings: portalSettings 
-        })
+        } as any) // Use type assertion to bypass TypeScript error
         .eq('username', user.username);
 
       if (updateError) {

@@ -26,6 +26,26 @@ export interface SupabaseConfig {
   key: string;
 }
 
+export interface PortalSettings {
+  enabled: boolean;
+  custom_path: string;
+  download_url?: string;
+  application_name?: string;
+}
+
+export interface WebLoginRegz {
+  id: number;
+  username: string;
+  password: string;
+  email: string;
+  subscription_type: string;
+  created_at: string;
+  supabase_url: string | null;
+  supabase_api_key: string | null;
+  license_key: string | null;
+  portal_settings: PortalSettings | null;
+}
+
 export interface License {
   id: number;
   key?: string;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,13 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowDown, KeyRound, Download, AlertCircle, LogIn, UserPlus } from 'lucide-react';
-
-interface PortalSettings {
-  enabled: boolean;
-  custom_path: string;
-  download_url?: string;
-  application_name?: string;
-}
+import { PortalSettings } from '@/types/auth';
 
 interface PortalConfig {
   id?: number;
@@ -73,18 +68,27 @@ const UserPortalPage = () => {
         return;
       }
       
+      // Type assertion for the web_login_regz query result
+      interface PortalConfigData {
+        username: string;
+        portal_settings: PortalSettings;
+      }
+      
       const { data: userData, error: userError } = await supabase
         .from('web_login_regz')
         .select('username, portal_settings')
         .eq('username', ownerUsername)
         .maybeSingle();
         
-      if (userData?.portal_settings?.custom_path === custom_path && 
-          userData?.portal_settings?.enabled === true) {
+      // Type assertion to handle portal_settings property
+      const userDataWithPortal = userData as unknown as PortalConfigData;
+        
+      if (userDataWithPortal?.portal_settings?.custom_path === custom_path && 
+          userDataWithPortal?.portal_settings?.enabled === true) {
         
         setPortalConfig({
-          ...userData.portal_settings,
-          username: userData.username
+          ...userDataWithPortal.portal_settings,
+          username: userDataWithPortal.username
         });
       } else {
         setError('Portal not found or is disabled');

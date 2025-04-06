@@ -2,15 +2,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { WebLoginRegz, PortalSettings } from "@/types/auth";
 
-interface PortalSettings {
-  enabled: boolean;
-  custom_path: string;
-  download_url?: string;
-  application_name?: string;
-}
-
-interface WebLoginRegz {
+interface PortalConfig {
   username: string;
   portal_settings: PortalSettings;
 }
@@ -68,16 +62,19 @@ const NotFound = () => {
         .eq('username', username)
         .maybeSingle();
         
-      if (userData && 
-          userData.portal_settings && 
-          userData.portal_settings.custom_path === customPath &&
-          userData.portal_settings.enabled === true) {
+      // Type assertion to handle portal_settings property
+      const userDataWithPortal = userData as unknown as PortalConfig;
+      
+      if (userDataWithPortal && 
+          userDataWithPortal.portal_settings && 
+          userDataWithPortal.portal_settings.custom_path === customPath &&
+          userDataWithPortal.portal_settings.enabled === true) {
         
         // Portal found in web_login_regz portal_settings
         setIsPortalPage(true);
         setPortalDetails({
-          ...userData.portal_settings,
-          username: userData.username
+          ...userDataWithPortal.portal_settings,
+          username: userDataWithPortal.username
         });
         
         // If portal exists, make sure URL is correct
