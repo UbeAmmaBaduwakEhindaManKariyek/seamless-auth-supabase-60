@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { WebLoginRegz, PortalSettings } from "@/types/auth";
+import { PortalSettings } from "@/types/auth";
 
 interface PortalConfig {
   username: string;
@@ -62,19 +62,27 @@ const NotFound = () => {
         .eq('username', username)
         .maybeSingle();
         
-      // Type assertion to handle portal_settings property
-      const userDataWithPortal = userData as unknown as PortalConfig;
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        setIsPortalPage(false);
+        setPortalDetails(null);
+        setLoading(false);
+        return;
+      }
       
-      if (userDataWithPortal && 
-          userDataWithPortal.portal_settings && 
-          userDataWithPortal.portal_settings.custom_path === customPath &&
-          userDataWithPortal.portal_settings.enabled === true) {
+      // Convert portal_settings to proper type and check if valid
+      const portalSettings = userData?.portal_settings as unknown as PortalSettings;
+      
+      if (userData && 
+          portalSettings && 
+          portalSettings.custom_path === customPath &&
+          portalSettings.enabled === true) {
         
         // Portal found in web_login_regz portal_settings
         setIsPortalPage(true);
         setPortalDetails({
-          ...userDataWithPortal.portal_settings,
-          username: userDataWithPortal.username
+          ...portalSettings,
+          username: userData.username
         });
         
         // If portal exists, make sure URL is correct

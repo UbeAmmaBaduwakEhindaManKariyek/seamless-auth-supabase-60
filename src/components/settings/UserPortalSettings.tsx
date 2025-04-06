@@ -85,19 +85,20 @@ const UserPortalSettings = () => {
           throw userError;
         }
 
-        // Type assertion to handle portal_settings property
-        const userDataWithPortal = userData as WebLoginRegz;
-        
-        if (userDataWithPortal && userDataWithPortal.portal_settings) {
-          // If user has portal settings in web_login_regz, use those
-          const settings = userDataWithPortal.portal_settings;
-          setPortalConfig({
-            enabled: settings.enabled || false,
-            custom_path: settings.custom_path || '',
-            download_url: settings.download_url || '',
-            application_name: settings.application_name || '',
-            username: user.username
-          });
+        if (userData) {
+          // Convert the raw data with portal_settings to our expected types
+          // Handle the case where portal_settings might be null or have a different structure
+          const portalSettings = userData.portal_settings as unknown as PortalSettings;
+          
+          if (portalSettings && typeof portalSettings === 'object') {
+            setPortalConfig({
+              enabled: portalSettings.enabled || false,
+              custom_path: portalSettings.custom_path || '',
+              download_url: portalSettings.download_url || '',
+              application_name: portalSettings.application_name || '',
+              username: user.username
+            });
+          }
         }
       }
     } catch (error) {
@@ -167,12 +168,11 @@ const UserPortalSettings = () => {
       }
 
       // 2. Then update web_login_regz with the portal settings
-      // Use a type assertion to handle the portal_settings property
       const { error: updateError } = await supabase
         .from('web_login_regz')
-        .update({ 
-          portal_settings: portalSettings 
-        } as any) // Use type assertion to bypass TypeScript error
+        .update({
+          portal_settings: portalSettings
+        })
         .eq('username', user.username);
 
       if (updateError) {
