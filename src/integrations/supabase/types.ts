@@ -9,26 +9,78 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      admin_credentials: {
+      api_keys: {
         Row: {
-          created_at: string
-          id: string
-          password: string
-          username: string
+          api_key: string
+          created_at: string | null
+          description: string | null
+          id: number
+          is_active: boolean | null
+          user_id: number | null
         }
         Insert: {
-          created_at?: string
-          id?: string
-          password: string
-          username: string
+          api_key: string
+          created_at?: string | null
+          description?: string | null
+          id?: number
+          is_active?: boolean | null
+          user_id?: number | null
         }
         Update: {
-          created_at?: string
-          id?: string
-          password?: string
-          username?: string
+          api_key?: string
+          created_at?: string | null
+          description?: string | null
+          id?: number
+          is_active?: boolean | null
+          user_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_requests: {
+        Row: {
+          api_key_id: number | null
+          endpoint: string
+          id: number
+          request_body: Json | null
+          request_time: string | null
+          response_body: Json | null
+          response_status: number | null
+        }
+        Insert: {
+          api_key_id?: number | null
+          endpoint: string
+          id?: number
+          request_body?: Json | null
+          request_time?: string | null
+          response_body?: Json | null
+          response_status?: number | null
+        }
+        Update: {
+          api_key_id?: number | null
+          endpoint?: string
+          id?: number
+          request_body?: Json | null
+          request_time?: string | null
+          response_body?: Json | null
+          response_status?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_requests_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       app_authentication_keys: {
         Row: {
@@ -59,6 +111,41 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      app_open_details: {
+        Row: {
+          app_version: string | null
+          device_info: Json | null
+          id: number
+          open_time: string | null
+          os_version: string | null
+          user_id: number | null
+        }
+        Insert: {
+          app_version?: string | null
+          device_info?: Json | null
+          id?: number
+          open_time?: string | null
+          os_version?: string | null
+          user_id?: number | null
+        }
+        Update: {
+          app_version?: string | null
+          device_info?: Json | null
+          id?: number
+          open_time?: string | null
+          os_version?: string | null
+          user_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_open_details_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       app_version: {
         Row: {
@@ -189,63 +276,6 @@ export type Database = {
         }
         Relationships: []
       }
-      benaxregz_giveaway: {
-        Row: {
-          created_at: string
-          email: string
-          game_id: string
-          game_name: string
-          id: string
-          is_winner: boolean | null
-          mobile: string
-          name: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          game_id: string
-          game_name: string
-          id?: string
-          is_winner?: boolean | null
-          mobile: string
-          name: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          game_id?: string
-          game_name?: string
-          id?: string
-          is_winner?: boolean | null
-          mobile?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      Data: {
-        Row: {
-          created_at: string | null
-          id: number | null
-          Module: string | null
-          replace: string | null
-          search: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: number | null
-          Module?: string | null
-          replace?: string | null
-          search?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: number | null
-          Module?: string | null
-          replace?: string | null
-          search?: string | null
-        }
-        Relationships: []
-      }
       display_data: {
         Row: {
           id: number
@@ -267,66 +297,6 @@ export type Database = {
           status?: string | null
           telegram_link?: string | null
           title?: string | null
-        }
-        Relationships: []
-      }
-      giveaway_participants: {
-        Row: {
-          created_at: string
-          email: string
-          game_id: string
-          game_name: string
-          id: string
-          is_winner: boolean | null
-          mobile: string
-          name: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          game_id: string
-          game_name: string
-          id?: string
-          is_winner?: boolean | null
-          mobile: string
-          name: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          game_id?: string
-          game_name?: string
-          id?: string
-          is_winner?: boolean | null
-          mobile?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      giveaway_settings: {
-        Row: {
-          created_at: string
-          end_time: string | null
-          id: string
-          is_active: boolean | null
-          number_of_winners: number | null
-          start_time: string | null
-        }
-        Insert: {
-          created_at?: string
-          end_time?: string | null
-          id?: string
-          is_active?: boolean | null
-          number_of_winners?: number | null
-          start_time?: string | null
-        }
-        Update: {
-          created_at?: string
-          end_time?: string | null
-          id?: string
-          is_active?: boolean | null
-          number_of_winners?: number | null
-          start_time?: string | null
         }
         Relationships: []
       }
@@ -449,6 +419,30 @@ export type Database = {
         }
         Relationships: []
       }
+      logs: {
+        Row: {
+          created_at: string | null
+          id: number
+          log_level: string
+          message: string
+          metadata: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          log_level: string
+          message: string
+          metadata?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          log_level?: string
+          message?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           id: number
@@ -517,6 +511,68 @@ export type Database = {
           price?: number | null
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          duration: number
+          features: Json | null
+          id: number
+          name: string
+          price: number
+        }
+        Insert: {
+          created_at?: string | null
+          duration: number
+          features?: Json | null
+          id?: number
+          name: string
+          price: number
+        }
+        Update: {
+          created_at?: string | null
+          duration?: number
+          features?: Json | null
+          id?: number
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
+      user_portal_auth: {
+        Row: {
+          created_at: string
+          id: number
+          last_login: string | null
+          license_key: string
+          password: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          last_login?: string | null
+          license_key: string
+          password: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          last_login?: string | null
+          license_key?: string
+          password?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_portal_auth_license_key_fkey"
+            columns: ["license_key"]
+            isOneToOne: false
+            referencedRelation: "license_keys"
+            referencedColumns: ["license_key"]
+          },
+        ]
       }
       user_portal_config: {
         Row: {
@@ -638,6 +694,33 @@ export type Database = {
           supabase_api_key?: string | null
           supabase_url?: string | null
           username?: string
+        }
+        Relationships: []
+      }
+      webhooks: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          headers: Json | null
+          id: number
+          payload: Json | null
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          headers?: Json | null
+          id?: number
+          payload?: Json | null
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          headers?: Json | null
+          id?: number
+          payload?: Json | null
+          url?: string
         }
         Relationships: []
       }
