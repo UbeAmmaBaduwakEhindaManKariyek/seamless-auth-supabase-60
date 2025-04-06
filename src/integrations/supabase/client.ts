@@ -35,7 +35,8 @@ export const getActiveClient = (): SupabaseClient<Database> => {
  */
 export const executeRawSql = async (sqlQuery: string): Promise<{ data: any; error: any }> => {
   try {
-    const { data, error } = await activeClient.rpc('execute_sql', { sql_query: sqlQuery });
+    // Using any to bypass type checking for the RPC function
+    const { data, error } = await (activeClient.rpc as any)('execute_sql', { sql_query: sqlQuery });
     return { data, error };
   } catch (error) {
     console.error('Error executing raw SQL:', error);

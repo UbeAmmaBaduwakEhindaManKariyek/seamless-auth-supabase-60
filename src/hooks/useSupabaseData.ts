@@ -41,9 +41,9 @@ export function useSupabaseData<T extends object>(
         createCustomClient(user.supabaseUrl, user.supabaseKey);
         const supabase = getActiveClient();
 
-        // Start building the query
-        let query = supabase
-          .from(tableName)
+        // Start building the query - using 'any' to bypass strict typing
+        // since we're passing dynamic table names
+        let query = (supabase.from as any)(tableName)
           .select(options.columns || '*');
 
         // Apply any filters
@@ -139,14 +139,13 @@ export async function saveSupabaseData<T extends object>(
 ) {
   try {
     const supabase = getActiveClient();
-    let query = supabase.from(tableName).insert(data);
+    // Using 'any' to bypass strict typing since we need to use dynamic table names
+    let query = (supabase.from as any)(tableName).insert(data);
     let finalQuery = query;
 
     // Handle conflict option
     if (options.onConflict) {
-      // Type assertion needed here
-      const queryWithConflict = (query as any).onConflict(options.onConflict);
-      finalQuery = queryWithConflict;
+      finalQuery = query.onConflict(options.onConflict);
     }
 
     // Handle returning option
@@ -184,8 +183,8 @@ export async function updateSupabaseData<T extends object>(
 ) {
   try {
     const supabase = getActiveClient();
-    let query = supabase
-      .from(tableName)
+    // Using 'any' to bypass strict typing for dynamic table names
+    let query = (supabase.from as any)(tableName)
       .update(updates)
       .eq(matchColumn, matchValue);
     
@@ -222,8 +221,8 @@ export async function deleteSupabaseData(
 ) {
   try {
     const supabase = getActiveClient();
-    const { error } = await supabase
-      .from(tableName)
+    // Using 'any' to bypass strict typing for dynamic table names
+    const { error } = await (supabase.from as any)(tableName)
       .delete()
       .eq(matchColumn, matchValue);
 
