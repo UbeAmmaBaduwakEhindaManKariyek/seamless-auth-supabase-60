@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import MobileNav from './MobileNav';
 import { cn } from '@/lib/utils';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 
@@ -19,13 +20,13 @@ const DashboardLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white flex">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar for larger screens - fixed to the left */}
       <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
       
       {/* Mobile navigation drawer */}
       <Drawer open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <DrawerContent className="bg-[#101010] text-white border-t border-gray-800 min-h-[80vh]">
+        <DrawerContent className="bg-card border-t border-border min-h-[80vh]">
           <div className="h-[80vh] overflow-auto">
             <Sidebar isOpen={true} toggleSidebar={() => setIsMobileMenuOpen(false)} isMobile={true} />
           </div>
@@ -33,17 +34,21 @@ const DashboardLayout: React.FC = () => {
       </Drawer>
       
       <div className={cn(
-        "flex-1 transition-all duration-300 w-full", 
-        sidebarOpen ? "md:ml-64" : "ml-0"
+        "content-area transition-all duration-300", 
+        sidebarOpen ? "with-sidebar" : ""
       )}>
         <Navbar 
           toggleSidebar={toggleSidebar} 
           toggleMobileMenu={toggleMobileMenu}
           isMobileMenuOpen={isMobileMenuOpen}
         />
-        <main className="pt-20 px-4 md:px-6 pb-6 min-h-screen">
+        
+        <main className="pt-20 px-4 md:px-6 pb-20 md:pb-6 min-h-screen">
           <Outlet />
         </main>
+        
+        {/* Mobile bottom navigation */}
+        <MobileNav />
       </div>
     </div>
   );
