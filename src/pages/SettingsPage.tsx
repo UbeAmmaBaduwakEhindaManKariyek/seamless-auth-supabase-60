@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ApiKeyManagement from '@/components/api/ApiKeyManagement';
 import AppVersionManager from '@/components/settings/AppVersionManager';
 import InstallTables from '@/components/supabase/InstallTables';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const SettingsPage = () => {
   const { isConnected } = useAuth();
@@ -14,11 +15,19 @@ const SettingsPage = () => {
     <div className="container max-w-4xl">
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
       
-      <div className="space-y-6">
-        <SupabaseSetup />
+      <Tabs defaultValue="connection" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="connection">Supabase Connection</TabsTrigger>
+          <TabsTrigger value="database" disabled={!isConnected}>Database Setup</TabsTrigger>
+          <TabsTrigger value="api" disabled={!isConnected}>API & Version</TabsTrigger>
+        </TabsList>
         
-        {isConnected && (
-          <>
+        <TabsContent value="connection" className="space-y-6">
+          <SupabaseSetup />
+        </TabsContent>
+        
+        <TabsContent value="database" className="space-y-6">
+          {isConnected && (
             <Card className="bg-[#101010] border-[#2a2a2a]">
               <CardHeader>
                 <CardTitle className="text-xl font-bold text-white">Supabase Database Setup</CardTitle>
@@ -30,11 +39,18 @@ const SettingsPage = () => {
                 <InstallTables />
               </CardContent>
             </Card>
-            <AppVersionManager />
-            <ApiKeyManagement />
-          </>
-        )}
-      </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="api" className="space-y-6">
+          {isConnected && (
+            <>
+              <AppVersionManager />
+              <ApiKeyManagement />
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

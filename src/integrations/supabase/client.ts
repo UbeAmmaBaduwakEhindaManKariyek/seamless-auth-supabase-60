@@ -1,6 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { toast } from '@/components/ui/use-toast';
 
 // Default client with the project's Supabase credentials
 // This will be overridden with the user's credentials when they connect
@@ -70,10 +71,43 @@ export function createCustomClient(url: string, key: string) {
 
 /**
  * Execute a raw SQL query using the active Supabase client
+ * Handles errors and returns the result
  */
 export async function executeRawSql(sqlQuery: string) {
   const client = getActiveClient();
-  return client.rpc('execute_sql', { sql_query: sqlQuery });
+  try {
+    const { data, error } = await client.rpc('execute_sql', { sql_query: sqlQuery });
+    
+    if (error) {
+      console.error("SQL execution error:", error);
+      
+      // Check if the error is due to the function not existing yet
+      if (error.message.includes("function") && error.message.includes("does not exist")) {
+        toast({
+          title: "SQL Function Missing",
+          description: "The execute_sql function is not available in your Supabase project. Please visit the Settings page to set up required functions.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "SQL Execution Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+      return { error };
+    }
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error("executeRawSql failed:", error);
+    toast({
+      title: "SQL Execution Failed",
+      description: "An unexpected error occurred while executing SQL",
+      variant: "destructive",
+    });
+    return { error };
+  }
 }
 
 /**
@@ -125,6 +159,49 @@ export async function testConnection(client = getActiveClient()) {
     console.error("Test connection failed:", error);
     return false;
   }
+}
+
+/**
+ * Ensure all required tables are accessible to the active client
+ * Checks a list of essential tables to see if the connection can access them
+ */
+export async function checkRequiredTables() {
+  const client = getActiveClient();
+  const requiredTables = [
+    'users',
+    'subscription_types',
+    'license_keys',
+    'login_details',
+    'login_logs',
+    'messages',
+    'regz_cheat_status',
+    'app_version',
+    'application_open',
+    'applications_registry',
+    'app_authentication_keys'
+  ];
+  
+  const results: Record<string, boolean> = {};
+  let allTablesExist = true;
+  
+  for (const table of requiredTables) {
+    try {
+      const { error } = await client
+        .from(table)
+        .select('count', { count: 'exact', head: true })
+        .limit(1);
+        
+      results[table] = !error;
+      if (error) {
+        allTablesExist = false;
+      }
+    } catch (e) {
+      results[table] = false;
+      allTablesExist = false;
+    }
+  }
+  
+  return { allTablesExist, tableResults: results };
 }
 
 // Add the executeRawSql method explicitly to the SupabaseClient type

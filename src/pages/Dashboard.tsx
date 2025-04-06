@@ -6,13 +6,16 @@ import ExampleDownloads from '@/components/examples/ExampleDownloads';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { createCustomClient, executeRawSql } from '@/integrations/supabase/client';
+import { createCustomClient, executeRawSql, getActiveClient } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
   const { user, isConnected, checkConnection } = useAuth();
   const [isTestingConnection, setIsTestingConnection] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'failed' | 'checking' | 'none'>('checking');
+  const [isCreatingFunction, setIsCreatingFunction] = useState(false);
 
   useEffect(() => {
     const testConnection = async () => {
@@ -29,8 +32,9 @@ const Dashboard: React.FC = () => {
         
         const isConnected = await checkConnection();
         if (isConnected) {
-          // Try to create the execute_sql function if it doesn't exist
+          // Create the execute_sql function if it doesn't exist
           try {
+            setIsCreatingFunction(true);
             // Create the execute_sql function using raw SQL
             await executeRawSql(`
               CREATE OR REPLACE FUNCTION execute_sql(sql_query text)
@@ -54,9 +58,10 @@ const Dashboard: React.FC = () => {
               END;
               $$;
             `);
+            setIsCreatingFunction(false);
           } catch (e) {
             console.log("Error creating execute_sql function, might already exist:", e);
-            // Ignore errors, function might already exist
+            setIsCreatingFunction(false);
           }
           
           setConnectionStatus('connected');
@@ -73,6 +78,23 @@ const Dashboard: React.FC = () => {
 
     testConnection();
   }, [user?.supabaseUrl, user?.supabaseKey, checkConnection]);
+
+  const handleRetryConnection = async () => {
+    if (user?.supabaseUrl && user?.supabaseKey) {
+      setConnectionStatus('checking');
+      setIsTestingConnection(true);
+      try {
+        createCustomClient(user.supabaseUrl, user.supabaseKey);
+        const isConnected = await checkConnection();
+        setConnectionStatus(isConnected ? 'connected' : 'failed');
+      } catch (error) {
+        console.error("Retry connection error:", error);
+        setConnectionStatus('failed');
+      } finally {
+        setIsTestingConnection(false);
+      }
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -128,11 +150,29 @@ const Dashboard: React.FC = () => {
         <Alert className="bg-red-900 border-red-700">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Connection Failed</AlertTitle>
-          <AlertDescription>
-            Failed to connect to Supabase. Please verify your URL and API key.
+          <AlertDescription className="flex flex-col gap-4">
+            <span>Failed to connect to Supabase. Please verify your URL and API key.</span>
+            <div className="flex gap-2">
+              <Button onClick={handleRetryConnection} className="bg-blue-600 hover:bg-blue-700">
+                Retry Connection
+              </Button>
+              <Button asChild variant="outline" className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]">
+                <Link to="/settings">Check Settings</Link>
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       ) : null}
+      
+      {isCreatingFunction && (
+        <Alert className="bg-blue-900 border-blue-700">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertTitle>Setting Up SQL Functions</AlertTitle>
+          <AlertDescription>
+            Creating required SQL functions in your Supabase database...
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SupabaseSetup />
