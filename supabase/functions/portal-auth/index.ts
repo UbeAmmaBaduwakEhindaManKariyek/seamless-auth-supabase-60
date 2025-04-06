@@ -49,59 +49,149 @@ serve(async (req) => {
         );
       }
       
-      // Check if user exists in user_portal_auth
+      console.log(`Login attempt for username: ${username}`);
+      
+      // First check if user exists in users table directly
       const { data: userData, error: userError } = await supabase
-        .from("user_portal_auth")
+        .from("users")
         .select("*")
         .eq("username", username)
         .eq("password", password)
         .single();
       
       if (userError || !userData) {
-        console.error("Login failed:", userError);
+        console.log("User not found in users table, checking user_portal_auth");
+        
+        // If not found in users table, try the user_portal_auth table
+        const { data: portalUserData, error: portalUserError } = await supabase
+          .from("user_portal_auth")
+          .select("*")
+          .eq("username", username)
+          .eq("password", password)
+          .single();
+        
+        if (portalUserError || !portalUserData) {
+          console.error("Login failed - user not found in any tables");
+          return new Response(
+            JSON.stringify({ success: false, error: "Invalid username or password" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 401 
+            }
+          );
+        }
+        
+        // Found in user_portal_auth but not in users
+        // Update last login time
+        await supabase
+          .from("user_portal_auth")
+          .update({ last_login: new Date().toISOString() })
+          .eq("id", portalUserData.id);
+        
+        // Get license key details
+        const { data: licenseData, error: licenseError } = await supabase
+          .from("license_keys")
+          .select("*")
+          .eq("license_key", portalUserData.license_key)
+          .single();
+        
+        if (licenseError || !licenseData) {
+          console.error("License key not found:", licenseError);
+          return new Response(
+            JSON.stringify({ success: false, error: "License key not found or invalid" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 401 
+            }
+          );
+        }
+        
+        console.log("Login successful via user_portal_auth");
+        
+        // Return user data with license information
         return new Response(
-          JSON.stringify({ success: false, error: "Invalid username or password" }),
+          JSON.stringify({ 
+            success: true, 
+            data: {
+              ...portalUserData,
+              subscription: licenseData.subscription,
+              expiredate: licenseData.expiredate,
+              banned: licenseData.banned,
+              token: crypto.randomUUID()
+            }
+          }),
           { 
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401 
+            status: 200 
           }
         );
       }
       
-      // Update last login time
-      await supabase
+      // User found in the main users table
+      console.log("User found in users table");
+      
+      // Update last login time in user_portal_auth if exists
+      const { data: existingAuth } = await supabase
         .from("user_portal_auth")
-        .update({ last_login: new Date().toISOString() })
-        .eq("id", userData.id);
-      
-      // Get license key details
-      const { data: licenseData, error: licenseError } = await supabase
-        .from("license_keys")
-        .select("*")
-        .eq("license_key", userData.license_key)
-        .single();
-      
-      if (licenseError || !licenseData) {
-        console.error("License key not found:", licenseError);
-        return new Response(
-          JSON.stringify({ success: false, error: "License key not found or invalid" }),
-          { 
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401 
-          }
-        );
+        .select("id")
+        .eq("username", username)
+        .maybeSingle();
+        
+      if (existingAuth?.id) {
+        await supabase
+          .from("user_portal_auth")
+          .update({ last_login: new Date().toISOString() })
+          .eq("id", existingAuth.id);
+      } else {
+        // Create an entry in user_portal_auth if it doesn't exist
+        await supabase
+          .from("user_portal_auth")
+          .insert({
+            username: username,
+            password: password,
+            license_key: userData.key || ""
+          });
       }
       
-      // Return user data with license information
+      // Get license information - first try from userData.key
+      let licenseData;
+      if (userData.key) {
+        const { data: licenseByKey, error: licenseKeyError } = await supabase
+          .from("license_keys")
+          .select("*")
+          .eq("license_key", userData.key)
+          .maybeSingle();
+          
+        if (!licenseKeyError && licenseByKey) {
+          licenseData = licenseByKey;
+        }
+      }
+      
+      // If not found by key, try using the username (some systems link username to license)
+      if (!licenseData) {
+        const { data: licenseByUser, error: licenseUserError } = await supabase
+          .from("license_keys")
+          .select("*")
+          .eq("license_key", username)
+          .maybeSingle();
+          
+        if (!licenseUserError && licenseByUser) {
+          licenseData = licenseByUser;
+        }
+      }
+      
+      console.log("Login successful via users table");
+      
+      // Return user data with license information if available
       return new Response(
         JSON.stringify({ 
           success: true, 
           data: {
             ...userData,
-            subscription: licenseData.subscription,
-            expiredate: licenseData.expiredate,
-            banned: licenseData.banned,
-            token: crypto.randomUUID() // Generate session token
+            subscription: userData.subscription || (licenseData?.subscription || ""),
+            expiredate: userData.expiredate || (licenseData?.expiredate || null),
+            banned: userData.banned !== undefined ? userData.banned : (licenseData?.banned || false),
+            token: crypto.randomUUID()
           }
         }),
         { 
@@ -122,14 +212,33 @@ serve(async (req) => {
         );
       }
       
-      // Check if username already exists
+      console.log(`Registration attempt for username: ${username} with license: ${license_key}`);
+      
+      // Check if username already exists in users table
       const { data: existingUser, error: existingUserError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username", username)
+        .maybeSingle();
+        
+      if (existingUser) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Username already exists" }),
+          { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 409 
+          }
+        );
+      }
+      
+      // Check if username already exists in user_portal_auth
+      const { data: existingPortalUser, error: existingPortalUserError } = await supabase
         .from("user_portal_auth")
         .select("id")
         .eq("username", username)
-        .single();
+        .maybeSingle();
         
-      if (existingUser) {
+      if (existingPortalUser) {
         return new Response(
           JSON.stringify({ success: false, error: "Username already exists" }),
           { 
@@ -171,7 +280,7 @@ serve(async (req) => {
         .single();
         
       if (newUserError) {
-        console.error("Error creating user:", newUserError);
+        console.error("Error creating user in user_portal_auth:", newUserError);
         return new Response(
           JSON.stringify({ success: false, error: "Failed to create user" }),
           { 
@@ -181,22 +290,32 @@ serve(async (req) => {
         );
       }
       
+      console.log("Created user in user_portal_auth");
+      
       // Create user entry in users table if it doesn't exist
-      const { error: userError } = await supabase
+      const { data: newMainUser, error: userError } = await supabase
         .from("users")
         .insert({
           username: username,
           password: password, 
           subscription: licenseData.subscription,
           expiredate: licenseData.expiredate,
-          hwid: licenseData.hwid,
+          hwid: licenseData.hwid || [],
           save_hwid: licenseData.save_hwid,
           max_devices: licenseData.max_devices,
           banned: licenseData.banned,
-          mobile_number: licenseData.mobile_number
+          mobile_number: licenseData.mobile_number,
+          key: license_key
         })
         .select()
         .single();
+      
+      if (userError) {
+        console.error("Error creating user in users table:", userError);
+        // Continue anyway since the user was successfully created in user_portal_auth
+      } else {
+        console.log("Created user in users table");
+      }
       
       // Return success response
       return new Response(
@@ -225,31 +344,162 @@ serve(async (req) => {
         );
       }
       
+      console.log(`HWID reset attempt for username: ${username}`);
+      
       // Check if user exists in user_portal_auth
       const { data: userData, error: userError } = await supabase
         .from("user_portal_auth")
         .select("*")
         .eq("username", username)
         .eq("password", password)
-        .single();
+        .maybeSingle();
       
+      // If not found in user_portal_auth, try the users table
       if (userError || !userData) {
-        console.error("Authentication failed:", userError);
+        const { data: mainUserData, error: mainUserError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("username", username)
+          .eq("password", password)
+          .maybeSingle();
+          
+        if (mainUserError || !mainUserData) {
+          console.error("Authentication failed for HWID reset");
+          return new Response(
+            JSON.stringify({ success: false, error: "Invalid username or password" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 401 
+            }
+          );
+        }
+        
+        // User found in users table
+        const licenseKey = mainUserData.key;
+        
+        if (!licenseKey) {
+          console.error("No license key found for user");
+          return new Response(
+            JSON.stringify({ success: false, error: "No license key associated with this account" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 400 
+            }
+          );
+        }
+        
+        // Check for hwid_reset_count directly in users table first
+        if (mainUserData.hwid_reset_count !== undefined && mainUserData.hwid_reset_count <= 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: "No HWID resets remaining" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 403 
+            }
+          );
+        }
+        
+        // Get license key details if needed
+        let licenseData;
+        if (mainUserData.hwid_reset_count === undefined) {
+          const { data: licenseInfo, error: licenseError } = await supabase
+            .from("license_keys")
+            .select("*")
+            .eq("license_key", licenseKey)
+            .maybeSingle();
+            
+          if (!licenseError && licenseInfo) {
+            licenseData = licenseInfo;
+            
+            // Check if user has remaining HWID resets in license_keys
+            if (licenseData.hwid_reset_count !== undefined && licenseData.hwid_reset_count <= 0) {
+              return new Response(
+                JSON.stringify({ success: false, error: "No HWID resets remaining" }),
+                { 
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                  status: 403 
+                }
+              );
+            }
+          }
+        }
+        
+        // Reset HWID in users table
+        const { error: resetUserError } = await supabase
+          .from("users")
+          .update({ 
+            hwid: []
+          })
+          .eq("username", username);
+        
+        if (resetUserError) {
+          console.error("Error resetting HWID in users table:", resetUserError);
+          return new Response(
+            JSON.stringify({ success: false, error: "Failed to reset HWID" }),
+            { 
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 500 
+            }
+          );
+        }
+        
+        // Also update license_keys table if we have a valid license key
+        if (licenseKey) {
+          const { error: resetLicenseError } = await supabase
+            .from("license_keys")
+            .update({ 
+              hwid: []
+            })
+            .eq("license_key", licenseKey);
+            
+          // Decrement hwid_reset_count if it exists
+          if (!resetLicenseError) {
+            // Update users table hwid_reset_count if it exists
+            if (mainUserData.hwid_reset_count !== undefined) {
+              await supabase
+                .from("users")
+                .update({ 
+                  hwid_reset_count: mainUserData.hwid_reset_count - 1
+                })
+                .eq("username", username);
+            }
+            
+            // Update license_keys table hwid_reset_count if it exists
+            if (licenseData && licenseData.hwid_reset_count !== undefined) {
+              await supabase
+                .from("license_keys")
+                .update({ 
+                  hwid_reset_count: licenseData.hwid_reset_count - 1
+                })
+                .eq("license_key", licenseKey);
+            }
+          }
+        }
+        
+        // Return success response
         return new Response(
-          JSON.stringify({ success: false, error: "Invalid username or password" }),
+          JSON.stringify({ 
+            success: true, 
+            data: {
+              message: "HWID reset successful",
+              resets_remaining: mainUserData.hwid_reset_count !== undefined ? mainUserData.hwid_reset_count - 1 : 
+                                (licenseData?.hwid_reset_count !== undefined ? licenseData.hwid_reset_count - 1 : null)
+            }
+          }),
           { 
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401 
+            status: 200 
           }
         );
       }
       
+      // User found in user_portal_auth
       // Get license key details
       const { data: licenseData, error: licenseError } = await supabase
         .from("license_keys")
         .select("*")
         .eq("license_key", userData.license_key)
-        .single();
+        .maybeSingle();
       
       if (licenseError || !licenseData) {
         console.error("License key not found:", licenseError);
@@ -263,7 +513,7 @@ serve(async (req) => {
       }
       
       // Check if user has remaining HWID resets
-      if (licenseData.hwid_reset_count <= 0) {
+      if (licenseData.hwid_reset_count !== undefined && licenseData.hwid_reset_count <= 0) {
         return new Response(
           JSON.stringify({ success: false, error: "No HWID resets remaining" }),
           { 
@@ -278,7 +528,7 @@ serve(async (req) => {
         .from("license_keys")
         .update({ 
           hwid: [],
-          hwid_reset_count: licenseData.hwid_reset_count - 1
+          hwid_reset_count: licenseData.hwid_reset_count !== undefined ? licenseData.hwid_reset_count - 1 : undefined
         })
         .eq("license_key", userData.license_key);
       
@@ -296,7 +546,10 @@ serve(async (req) => {
       // Also update users table if the user exists there
       await supabase
         .from("users")
-        .update({ hwid: [] })
+        .update({ 
+          hwid: [],
+          hwid_reset_count: licenseData.hwid_reset_count !== undefined ? licenseData.hwid_reset_count - 1 : undefined
+        })
         .eq("username", username);
       
       // Return success response
@@ -305,7 +558,7 @@ serve(async (req) => {
           success: true, 
           data: {
             message: "HWID reset successful",
-            resets_remaining: licenseData.hwid_reset_count - 1
+            resets_remaining: licenseData.hwid_reset_count !== undefined ? licenseData.hwid_reset_count - 1 : null
           }
         }),
         { 
