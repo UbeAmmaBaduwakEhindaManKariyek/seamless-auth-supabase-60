@@ -576,6 +576,7 @@ export type Database = {
       }
       user_portal_config: {
         Row: {
+          application_name: string | null
           created_at: string | null
           custom_path: string
           download_url: string | null
@@ -584,6 +585,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          application_name?: string | null
           created_at?: string | null
           custom_path: string
           download_url?: string | null
@@ -592,6 +594,7 @@ export type Database = {
           username: string
         }
         Update: {
+          application_name?: string | null
           created_at?: string | null
           custom_path?: string
           download_url?: string | null

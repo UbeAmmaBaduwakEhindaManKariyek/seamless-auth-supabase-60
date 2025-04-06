@@ -103,6 +103,8 @@ const UserPortalSettings = () => {
         application_name: portalConfig.application_name?.trim() || '',
       };
 
+      console.log('Saving portal data:', portalData);
+
       let response;
       
       if (portalConfig.id) {
@@ -115,6 +117,7 @@ const UserPortalSettings = () => {
       }
 
       if (response.error) {
+        console.error('Error from Supabase:', response.error);
         throw response.error;
       }
 
