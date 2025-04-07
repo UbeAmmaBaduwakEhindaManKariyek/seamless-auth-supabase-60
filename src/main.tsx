@@ -4,9 +4,8 @@ import { HashRouter, BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import './index.css'
 
-// Use HashRouter for compatibility with GitHub Pages and other static hosts
-// Or use BrowserRouter if you have proper server configuration
-const Router = window.location.hostname === 'localhost' ? BrowserRouter : HashRouter;
+// Always use HashRouter for static hosting to prevent 404 errors
+const Router = HashRouter;
 
 createRoot(document.getElementById("root")!).render(
   <Router>

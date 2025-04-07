@@ -28,6 +28,7 @@ import ApplicationsPage from "./pages/ApplicationsPage";
 import UserPortalPage from "./pages/panel/UserPortalPage";
 import UserPortalRedirect from "./pages/UserPortalRedirect";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
+            {/* Home route */}
+            <Route index element={<Index />} />
+            
             {/* Panel/Portal routes with WILDCARD paths to catch all parameters */}
             <Route path="/panel/:username/:custom_path/*" element={<UserPortalPage />} />
             <Route path="/panel/:username/:custom_path" element={<UserPortalPage />} />
@@ -71,7 +75,7 @@ const App = () => (
                 <DashboardLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="licenses" element={<LicensesPage />} />
               <Route path="subscriptions" element={<SubscriptionsPage />} />
