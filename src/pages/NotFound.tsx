@@ -1,5 +1,5 @@
 
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,15 +18,15 @@ const NotFound = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      location.pathname
-    );
+    console.log("404 Error: User attempted to access non-existent route:", location.pathname);
 
     // Check if this is a portal page
     const pathSegments = location.pathname.split('/');
     if (pathSegments.length >= 3 && pathSegments[1] === 'portal') {
-      checkPortalPath(pathSegments[2], pathSegments[3] || '');
+      const username = pathSegments[2];
+      const customPath = pathSegments[3] || '';
+      console.log(`Checking if this is a portal path: ${username}/${customPath}`);
+      checkPortalPath(username, customPath);
     } else {
       setLoading(false);
     }
@@ -35,6 +35,8 @@ const NotFound = () => {
   const checkPortalPath = async (username: string, customPath: string) => {
     setLoading(true);
     try {
+      console.log(`Checking portal path: ${username}/${customPath}`);
+      
       // First check in user_portal_config table
       const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
@@ -45,19 +47,17 @@ const NotFound = () => {
         .maybeSingle();
         
       if (portalData) {
+        console.log('Portal found in user_portal_config:', portalData);
         // Portal found in user_portal_config
         setIsPortalPage(true);
         setPortalDetails(portalData);
         
-        // If portal exists, redirect to correct URL format
-        if (location.pathname !== `/portal/${username}/${customPath}`) {
-          navigate(`/portal/${username}/${customPath}`, { replace: true });
-        } else {
-          // If we're already on the correct URL, load UserPortalPage component
-          navigate(`/portal/${username}/${customPath}`);
-        }
+        // Always redirect to the standardized URL format
+        navigate(`/portal/${username}/${customPath}`, { replace: true });
         return;
       }
+      
+      console.log('Portal not found in user_portal_config, checking web_login_regz');
       
       // If not found in user_portal_config, check web_login_regz table
       const { data: userData, error: userError } = await supabase
@@ -74,6 +74,8 @@ const NotFound = () => {
         return;
       }
       
+      console.log('User data from web_login_regz:', userData);
+      
       // Convert portal_settings to proper type and check if valid
       if (userData && userData.portal_settings) {
         // Safely cast to the correct type
@@ -81,12 +83,14 @@ const NotFound = () => {
         
         try {
           portalSettings = userData.portal_settings as unknown as PortalSettings;
+          console.log('Portal settings from web_login_regz:', portalSettings);
           
           if (portalSettings && 
               typeof portalSettings === 'object' &&
               portalSettings.custom_path === customPath &&
               portalSettings.enabled === true) {
             
+            console.log('Valid portal found in web_login_regz');
             // Portal found in web_login_regz portal_settings
             setIsPortalPage(true);
             setPortalDetails({
@@ -94,14 +98,11 @@ const NotFound = () => {
               username: userData.username
             });
             
-            // If portal exists, redirect to correct URL format
-            if (location.pathname !== `/portal/${username}/${customPath}`) {
-              navigate(`/portal/${username}/${customPath}`, { replace: true });
-            } else {
-              // If we're already on the correct URL, load UserPortalPage component
-              navigate(`/portal/${username}/${customPath}`);
-            }
+            // Always redirect to the standardized URL format
+            navigate(`/portal/${username}/${customPath}`, { replace: true });
             return;
+          } else {
+            console.log('Portal settings found but not valid or enabled');
           }
         } catch (error) {
           console.error('Error parsing portal settings:', error);

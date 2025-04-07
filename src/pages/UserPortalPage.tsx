@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -43,8 +42,23 @@ const UserPortalPage = () => {
     license_key: '',
   });
   
+  const isMounted = React.useRef(true);
+  
   useEffect(() => {
-    fetchPortalConfig();
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+  
+  useEffect(() => {
+    if (ownerUsername && custom_path) {
+      console.log(`Loading portal for ${ownerUsername}/${custom_path}`);
+      fetchPortalConfig();
+    } else {
+      console.error("Missing username or custom_path parameters");
+      setError('Invalid portal URL');
+      setLoading(false);
+    }
   }, [ownerUsername, custom_path]);
 
   const fetchPortalConfig = async () => {
@@ -55,6 +69,8 @@ const UserPortalPage = () => {
     }
 
     try {
+      console.log(`Fetching portal config for ${ownerUsername}/${custom_path}`);
+      
       // First check in user_portal_config table
       const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
@@ -65,8 +81,11 @@ const UserPortalPage = () => {
         .maybeSingle();
 
       if (portalData) {
-        setPortalConfig(portalData);
-        setLoading(false);
+        console.log('Found portal config in user_portal_config', portalData);
+        if (isMounted.current) {
+          setPortalConfig(portalData);
+          setLoading(false);
+        }
         return;
       }
       
@@ -79,43 +98,60 @@ const UserPortalPage = () => {
         
       if (userError) {
         console.error('Error fetching user data:', userError);
-        setError('Portal not found or is disabled');
-        setLoading(false);
+        if (isMounted.current) {
+          setError('Portal not found or is disabled');
+          setLoading(false);
+        }
         return;
       }
 
       // Safely handle portal_settings from userData
       if (userData && userData.portal_settings) {
+        console.log('Found user data with portal settings', userData);
+        
         // Type check and convert portal_settings
         try {
+          // First cast to unknown, then to PortalSettings to handle the type conversion safely
           const portalSettings = userData.portal_settings as unknown as PortalSettings;
           
           if (typeof portalSettings === 'object' && 
               portalSettings.custom_path === custom_path && 
               portalSettings.enabled === true) {
             
-            setPortalConfig({
-              username: userData.username,
-              enabled: portalSettings.enabled,
-              custom_path: portalSettings.custom_path,
-              download_url: portalSettings.download_url,
-              application_name: portalSettings.application_name
-            });
+            if (isMounted.current) {  
+              setPortalConfig({
+                username: userData.username,
+                enabled: portalSettings.enabled,
+                custom_path: portalSettings.custom_path,
+                download_url: portalSettings.download_url,
+                application_name: portalSettings.application_name
+              });
+            }
           } else {
-            setError('Portal not found or is disabled');
+            if (isMounted.current) {
+              setError('Portal not found or is disabled');
+            }
           }
         } catch (error) {
           console.error('Error parsing portal settings:', error);
-          setError('Invalid portal configuration');
+          if (isMounted.current) {
+            setError('Invalid portal configuration');
+          }
         }
       } else {
-        setError('Portal not found or is disabled');
+        if (isMounted.current) {
+          setError('Portal not found or is disabled');
+        }
       }
     } catch (error) {
       console.error('Error fetching portal:', error);
-      setError('Portal not found or is disabled');
+      if (isMounted.current) {
+        setError('Portal not found or is disabled');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -348,10 +384,10 @@ const UserPortalPage = () => {
     });
   };
 
-  if (loading && !portalConfig) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
-        <p className="text-white">Loading portal...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
       </div>
     );
   }

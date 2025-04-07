@@ -37,13 +37,14 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
-          {/* Put most specific routes first */}
+          {/* Important: Portal route must be before all other routes for direct access */}
+          <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
+          
+          {/* Auth routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
-          {/* Portal route - put this before protected routes */}
-          <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
-          
+          {/* Dashboard routes */}
           <Route path="/" element={
             <ProtectedRoute>
               <DashboardLayout />
