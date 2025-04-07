@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,7 @@ interface PortalConfig {
 const UserPortalPage = () => {
   const { username: ownerUsername, custom_path } = useParams();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
@@ -54,6 +55,7 @@ const UserPortalPage = () => {
     }
 
     try {
+      // First check in user_portal_config table
       const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
         .select('*')
@@ -68,28 +70,44 @@ const UserPortalPage = () => {
         return;
       }
       
-      // Type assertion for the web_login_regz query result
-      interface PortalConfigData {
-        username: string;
-        portal_settings: PortalSettings;
-      }
-      
+      // If not found in user_portal_config, check web_login_regz table
       const { data: userData, error: userError } = await supabase
         .from('web_login_regz')
         .select('username, portal_settings')
         .eq('username', ownerUsername)
         .maybeSingle();
         
-      // Type assertion to handle portal_settings property
-      const userDataWithPortal = userData as unknown as PortalConfigData;
-        
-      if (userDataWithPortal?.portal_settings?.custom_path === custom_path && 
-          userDataWithPortal?.portal_settings?.enabled === true) {
-        
-        setPortalConfig({
-          ...userDataWithPortal.portal_settings,
-          username: userDataWithPortal.username
-        });
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        setError('Portal not found or is disabled');
+        setLoading(false);
+        return;
+      }
+
+      // Safely handle portal_settings from userData
+      if (userData && userData.portal_settings) {
+        // Type check and convert portal_settings
+        try {
+          const portalSettings = userData.portal_settings as unknown as PortalSettings;
+          
+          if (typeof portalSettings === 'object' && 
+              portalSettings.custom_path === custom_path && 
+              portalSettings.enabled === true) {
+            
+            setPortalConfig({
+              username: userData.username,
+              enabled: portalSettings.enabled,
+              custom_path: portalSettings.custom_path,
+              download_url: portalSettings.download_url,
+              application_name: portalSettings.application_name
+            });
+          } else {
+            setError('Portal not found or is disabled');
+          }
+        } catch (error) {
+          console.error('Error parsing portal settings:', error);
+          setError('Invalid portal configuration');
+        }
       } else {
         setError('Portal not found or is disabled');
       }
@@ -347,6 +365,14 @@ const UserPortalPage = () => {
           </CardHeader>
           <CardContent>
             <p className="text-white">{error}</p>
+            <div className="mt-4">
+              <Button 
+                onClick={() => navigate("/")} 
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Return to Home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

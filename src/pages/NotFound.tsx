@@ -1,3 +1,4 @@
+
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,8 @@ const NotFound = () => {
 
     // Check if this is a portal page
     const pathSegments = location.pathname.split('/');
-    if (pathSegments.length >= 4 && pathSegments[1] === 'portal') {
-      checkPortalPath(pathSegments[2], pathSegments[3]);
+    if (pathSegments.length >= 3 && pathSegments[1] === 'portal') {
+      checkPortalPath(pathSegments[2], pathSegments[3] || '');
     } else {
       setLoading(false);
     }
@@ -48,8 +49,11 @@ const NotFound = () => {
         setIsPortalPage(true);
         setPortalDetails(portalData);
         
-        // If portal exists, make sure URL is correct
+        // If portal exists, redirect to correct URL format
         if (location.pathname !== `/portal/${username}/${customPath}`) {
+          navigate(`/portal/${username}/${customPath}`, { replace: true });
+        } else {
+          // If we're already on the correct URL, load UserPortalPage component
           navigate(`/portal/${username}/${customPath}`);
         }
         return;
@@ -71,25 +75,37 @@ const NotFound = () => {
       }
       
       // Convert portal_settings to proper type and check if valid
-      const portalSettings = userData?.portal_settings as unknown as PortalSettings;
-      
-      if (userData && 
-          portalSettings && 
-          portalSettings.custom_path === customPath &&
-          portalSettings.enabled === true) {
+      if (userData && userData.portal_settings) {
+        // Safely cast to the correct type
+        let portalSettings: PortalSettings;
         
-        // Portal found in web_login_regz portal_settings
-        setIsPortalPage(true);
-        setPortalDetails({
-          ...portalSettings,
-          username: userData.username
-        });
-        
-        // If portal exists, make sure URL is correct
-        if (location.pathname !== `/portal/${username}/${customPath}`) {
-          navigate(`/portal/${username}/${customPath}`);
+        try {
+          portalSettings = userData.portal_settings as unknown as PortalSettings;
+          
+          if (portalSettings && 
+              typeof portalSettings === 'object' &&
+              portalSettings.custom_path === customPath &&
+              portalSettings.enabled === true) {
+            
+            // Portal found in web_login_regz portal_settings
+            setIsPortalPage(true);
+            setPortalDetails({
+              ...portalSettings,
+              username: userData.username
+            });
+            
+            // If portal exists, redirect to correct URL format
+            if (location.pathname !== `/portal/${username}/${customPath}`) {
+              navigate(`/portal/${username}/${customPath}`, { replace: true });
+            } else {
+              // If we're already on the correct URL, load UserPortalPage component
+              navigate(`/portal/${username}/${customPath}`);
+            }
+            return;
+          }
+        } catch (error) {
+          console.error('Error parsing portal settings:', error);
         }
-        return;
       }
       
       // Portal not found in either table or is disabled

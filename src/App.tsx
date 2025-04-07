@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 // Layouts
@@ -37,8 +37,11 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
+          {/* Put most specific routes first */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Portal route - put this before protected routes */}
           <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
           
           <Route path="/" element={
@@ -60,6 +63,7 @@ const App = () => (
             <Route path="applications" element={<ApplicationsPage />} />
           </Route>
           
+          {/* Catch all route at the very end */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>
