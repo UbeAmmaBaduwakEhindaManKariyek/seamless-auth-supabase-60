@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Download, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader2, Download, RefreshCw, AlertCircle, LogIn } from 'lucide-react';
 import { UserPortalConfig } from '@/components/settings/portal/types';
 
 const UserPortalPage: React.FC = () => {
@@ -20,6 +20,7 @@ const UserPortalPage: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hwid, setHwid] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
   const { toast } = useToast();
 
   // Generate a random HWID for demo purposes
@@ -77,13 +78,60 @@ const UserPortalPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setIsAuthenticated(true);
-      toast({
-        title: "Login successful",
-        description: "You have been authenticated successfully",
-      });
+      // First, try to authenticate against the users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', loginInfo.username)
+        .eq('password', loginInfo.password)
+        .maybeSingle();
+
+      if (userError) {
+        throw new Error(userError.message);
+      }
+
+      if (userData) {
+        // User found in the users table
+        setUserData(userData);
+        setIsAuthenticated(true);
+        toast({
+          title: "Login successful",
+          description: "You have been authenticated successfully",
+        });
+        return;
+      }
+
+      // If not found in users table, try user_portal_auth
+      const { data: portalUserData, error: portalUserError } = await supabase
+        .from('user_portal_auth')
+        .select('*')
+        .eq('username', loginInfo.username)
+        .eq('password', loginInfo.password)
+        .maybeSingle();
+
+      if (portalUserError) {
+        throw new Error(portalUserError.message);
+      }
+
+      if (portalUserData) {
+        // User found in the user_portal_auth table
+        setUserData(portalUserData);
+        setIsAuthenticated(true);
+        // Update last login time
+        await supabase
+          .from('user_portal_auth')
+          .update({ last_login: new Date().toISOString() })
+          .eq('id', portalUserData.id);
+
+        toast({
+          title: "Login successful",
+          description: "You have been authenticated successfully",
+        });
+        return;
+      }
+
+      // No user found in either table
+      throw new Error("Invalid username or password");
     } catch (err: any) {
       console.error('Login error:', err);
       toast({
@@ -100,7 +148,26 @@ const UserPortalPage: React.FC = () => {
     setIsResetting(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Get the user's license key
+      const licenseKey = userData?.key || userData?.license_key;
+      
+      if (!licenseKey) {
+        throw new Error("No license key associated with this account");
+      }
+      
+      // Reset HWID in the license_keys table
+      const { error: resetError } = await supabase
+        .from('license_keys')
+        .update({ hwid: [] })
+        .eq('license_key', licenseKey);
+      
+      if (resetError) throw resetError;
+      
+      // Also reset HWID in the users table if the user exists there
+      await supabase
+        .from('users')
+        .update({ hwid: [] })
+        .eq('username', loginInfo.username);
       
       const newHWID = Array.from(
         { length: 32 },
@@ -204,18 +271,6 @@ const UserPortalPage: React.FC = () => {
                 />
               </div>
               
-              <div className="space-y-2">
-                <label htmlFor="licenseKey" className="text-sm text-gray-300">License Key</label>
-                <Input
-                  id="licenseKey"
-                  type="text"
-                  value={loginInfo.licenseKey}
-                  onChange={(e) => setLoginInfo({...loginInfo, licenseKey: e.target.value})}
-                  required
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
-                />
-              </div>
-              
               <Button 
                 type="submit" 
                 className="w-full bg-blue-600 hover:bg-blue-700"
@@ -226,7 +281,12 @@ const UserPortalPage: React.FC = () => {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Logging in...
                   </>
-                ) : 'Login'}
+                ) : (
+                  <>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Login
+                  </>
+                )}
               </Button>
             </form>
           ) : (
