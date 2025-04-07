@@ -37,7 +37,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
-          {/* Important: Portal route must be before all other routes for direct access */}
+          {/* Portal route has its own dedicated path with highest priority */}
           <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
           
           {/* Auth routes */}
