@@ -53,13 +53,13 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            {/* Panel routes with custom URL paths */}
-            <Route path="/panel/:username/:custom_path" element={<UserPortalPage />} />
+            {/* Panel/Portal routes with WILDCARD paths to catch all parameters */}
             <Route path="/panel/:username/:custom_path/*" element={<UserPortalPage />} />
+            <Route path="/panel/:username/:custom_path" element={<UserPortalPage />} />
             
             {/* Redirect from old portal URLs to new panel URLs */}
-            <Route path="/portal/:username/:custom_path" element={<UserPortalRedirect />} />
             <Route path="/portal/:username/:custom_path/*" element={<UserPortalRedirect />} />
+            <Route path="/portal/:username/:custom_path" element={<UserPortalRedirect />} />
             
             {/* Auth routes */}
             <Route path="/login" element={<LoginPage />} />
