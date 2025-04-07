@@ -1,9 +1,8 @@
 
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { PortalSettings } from "@/types/auth";
 
 const NotFound = () => {
   const location = useLocation();
@@ -21,13 +20,45 @@ const NotFound = () => {
       
       if (pathSegments.length >= 3 && pathSegments[1] === 'portal') {
         const username = pathSegments[2];
-        const customPath = pathSegments[3] || '';
+        const customPath = pathSegments.slice(3).join('/') || '';
         console.log(`Detected potential portal path: ${username}/${customPath}`);
         
-        if (username && customPath) {
-          console.log(`Redirecting to /portal/${username}/${customPath}`);
-          navigate(`/portal/${username}/${customPath}`, { replace: true });
-          return;
+        try {
+          // First try to find in user_portal_config
+          const { data: portalConfig, error } = await supabase
+            .from('user_portal_config')
+            .select('*')
+            .eq('username', username)
+            .eq('custom_path', customPath)
+            .eq('enabled', true)
+            .maybeSingle();
+            
+          if (portalConfig) {
+            console.log("Found portal configuration, redirecting to portal page");
+            navigate(`/portal/${username}/${customPath}`, { replace: true });
+            return;
+          } else {
+            console.log("Portal config not found or not enabled in primary table");
+            
+            // Try web_login_regz as fallback
+            const { data: userData } = await supabase
+              .from('web_login_regz')
+              .select('username, portal_settings')
+              .eq('username', username)
+              .maybeSingle();
+              
+            if (userData && 
+                userData.portal_settings && 
+                userData.portal_settings.custom_path === customPath && 
+                userData.portal_settings.enabled === true) {
+              
+              console.log("Found portal in web_login_regz, redirecting");
+              navigate(`/portal/${username}/${customPath}`, { replace: true });
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Error checking portal:", error);
         }
       }
       

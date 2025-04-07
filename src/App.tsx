@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 // Layouts
@@ -52,7 +52,8 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            {/* Portal routes with much higher priority and wildcard matching */}
+            {/* Portal routes need EXTRA high priority and flexibility in path matching */}
+            <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
             <Route path="/portal/:username/:custom_path/*" element={<UserPortalPage />} />
             
             {/* Auth routes */}
