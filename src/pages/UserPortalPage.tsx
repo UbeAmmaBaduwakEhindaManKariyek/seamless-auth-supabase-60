@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Download, RefreshCw } from 'lucide-react';
-import { PortalSettings } from '@/types/auth';
-import { Json } from '@/integrations/supabase/types';
 
 interface PortalConfig {
   application_name: string;
@@ -78,35 +76,9 @@ const UserPortalPage: React.FC = () => {
           .maybeSingle();
 
         if (userData && userData.portal_settings) {
-          // Safely convert the JSON data to our expected PortalSettings type
-          let portalSettings: PortalSettings | null = null;
+          const settings = userData.portal_settings;
           
-          try {
-            // First cast to unknown, then to our type to avoid direct type errors
-            const rawSettings = userData.portal_settings as Json;
-            
-            // Validate that it's an object with the required properties
-            if (
-              typeof rawSettings === 'object' && 
-              rawSettings !== null && 
-              !Array.isArray(rawSettings) &&
-              'enabled' in rawSettings &&
-              'custom_path' in rawSettings &&
-              'download_url' in rawSettings
-            ) {
-              portalSettings = {
-                enabled: Boolean(rawSettings.enabled),
-                custom_path: String(rawSettings.custom_path || ''),
-                download_url: String(rawSettings.download_url || ''),
-                application_name: rawSettings.application_name ? String(rawSettings.application_name) : undefined
-              };
-            }
-          } catch (e) {
-            console.error('Error parsing portal settings:', e);
-            portalSettings = null;
-          }
-          
-          if (!portalSettings || !portalSettings.enabled || portalSettings.custom_path !== custom_path) {
+          if (!settings.enabled || settings.custom_path !== custom_path) {
             toast({
               title: 'Portal Not Found',
               description: 'The requested portal does not exist or is disabled.',
@@ -117,9 +89,9 @@ const UserPortalPage: React.FC = () => {
           }
           
           setPortalConfig({
-            application_name: portalSettings.application_name || 'Application Portal',
-            download_url: portalSettings.download_url || '',
-            enabled: portalSettings.enabled
+            application_name: settings.application_name || 'Application Portal',
+            download_url: settings.download_url || '',
+            enabled: settings.enabled
           });
         } else {
           toast({

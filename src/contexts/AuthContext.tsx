@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, LoginCredentials, UserCredentials } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -131,10 +130,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data && data.username === credentials.username) {
         if (data.password === credentials.password) {
           const userWithSupabaseConfig: AuthUser = {
-            id: data.id.toString(),
+            id: data.id,
             username: data.username,
             email: data.email,
-            is_admin: data.subscription_type === 'admin',
+            isAdmin: data.subscription_type === 'admin',
             supabaseUrl: data.supabase_url,
             supabaseKey: data.supabase_api_key
           };
@@ -262,10 +261,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Create user object and save to storage
       const userWithSupabaseConfig: AuthUser = {
-        id: newUser.id.toString(),
+        id: newUser.id,
         username: newUser.username,
         email: newUser.email,
-        is_admin: newUser.subscription_type === 'admin',
+        isAdmin: newUser.subscription_type === 'admin',
         supabaseUrl: newUser.supabase_url,
         supabaseKey: newUser.supabase_api_key
       };
@@ -331,12 +330,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (connected) {
         const updatedUser = user ? { ...user, supabaseUrl: url, supabaseKey: key } : {
-          id: "1",
+          id: 1,
           username: "admin",
           email: "admin@example.com",
           supabaseUrl: url,
           supabaseKey: key,
-          is_admin: true
+          isAdmin: true
         };
         
         // First, save to the main project's Supabase database
