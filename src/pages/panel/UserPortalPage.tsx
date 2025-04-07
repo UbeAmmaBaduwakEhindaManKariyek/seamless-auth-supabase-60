@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getActiveClient } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +21,6 @@ const UserPortalPage: React.FC = () => {
   const [hwid, setHwid] = useState('');
   const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
-  const supabase = getActiveClient();
 
   // Generate a random HWID for demo purposes
   useEffect(() => {
@@ -44,6 +44,7 @@ const UserPortalPage: React.FC = () => {
       }
 
       try {
+        // Fixed: Using the proper supabase client method
         const { data, error } = await supabase
           .from('user_portal_config')
           .select('*')
