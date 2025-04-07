@@ -25,7 +25,7 @@ import AppOpenPage from "./pages/AppOpenPage";
 import EmuUsersPage from "./pages/EmuUsersPage";
 import ApiDocsPage from "./pages/ApiDocsPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
-import UserPortalPage from "./pages/UserPortalPage";
+import UserPortalPage from "./pages/panel/UserPortalPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -52,9 +52,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            {/* Portal routes need EXTRA high priority and flexibility in path matching */}
-            <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
-            <Route path="/portal/:username/:custom_path/*" element={<UserPortalPage />} />
+            {/* Panel routes with custom URL paths */}
+            <Route path="/panel/:username/:custom_path" element={<UserPortalPage />} />
+            <Route path="/panel/:username/:custom_path/*" element={<UserPortalPage />} />
             
             {/* Auth routes */}
             <Route path="/login" element={<LoginPage />} />

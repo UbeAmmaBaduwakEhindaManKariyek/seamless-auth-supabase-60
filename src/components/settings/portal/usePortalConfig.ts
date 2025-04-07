@@ -28,7 +28,8 @@ export const usePortalConfig = () => {
   useEffect(() => {
     if (user?.username && portalConfig.custom_path) {
       const baseUrl = window.location.origin;
-      setPortalUrl(`${baseUrl}/portal/${user.username}/${portalConfig.custom_path}`);
+      // Using the new panel URL format
+      setPortalUrl(`${baseUrl}/panel/${user.username}/${portalConfig.custom_path}`);
     } else {
       setPortalUrl('');
     }
