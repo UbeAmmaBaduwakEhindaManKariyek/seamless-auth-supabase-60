@@ -26,6 +26,7 @@ import EmuUsersPage from "./pages/EmuUsersPage";
 import ApiDocsPage from "./pages/ApiDocsPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import UserPortalPage from "./pages/panel/UserPortalPage";
+import UserPortalRedirect from "./pages/UserPortalRedirect";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -38,7 +39,7 @@ const queryClient = new QueryClient({
 });
 
 // Create a custom wrapper that logs information about routes
-const RouteLogger = ({ children }) => {
+const RouteLogger = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   console.log("Current route:", location.pathname);
   return children;
@@ -55,6 +56,10 @@ const App = () => (
             {/* Panel routes with custom URL paths */}
             <Route path="/panel/:username/:custom_path" element={<UserPortalPage />} />
             <Route path="/panel/:username/:custom_path/*" element={<UserPortalPage />} />
+            
+            {/* Redirect from old portal URLs to new panel URLs */}
+            <Route path="/portal/:username/:custom_path" element={<UserPortalRedirect />} />
+            <Route path="/portal/:username/:custom_path/*" element={<UserPortalRedirect />} />
             
             {/* Auth routes */}
             <Route path="/login" element={<LoginPage />} />

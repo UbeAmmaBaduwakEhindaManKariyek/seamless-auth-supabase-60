@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { getActiveClient } from '@/integrations/supabase/client';
@@ -59,7 +58,7 @@ const UserPortalPage: React.FC = () => {
         } else if (!data.enabled) {
           setError('Portal is currently disabled');
         } else {
-          setPortalConfig(data);
+          setPortalConfig(data as unknown as UserPortalConfig);
         }
       } catch (err: any) {
         console.error('Error fetching portal configuration:', err);
@@ -77,8 +76,6 @@ const UserPortalPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // In a real implementation, you would validate against the database
-      // For this demo, we'll simulate authentication
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setIsAuthenticated(true);
@@ -102,11 +99,8 @@ const UserPortalPage: React.FC = () => {
     setIsResetting(true);
     
     try {
-      // In a real implementation, you would update the HWID in the database
-      // For this demo, we'll simulate the reset
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Generate new HWID
       const newHWID = Array.from(
         { length: 32 },
         () => Math.floor(Math.random() * 16).toString(16)
