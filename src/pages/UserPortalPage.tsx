@@ -1,574 +1,574 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Download, RefreshCw } from 'lucide-react';
+import { ArrowDown, KeyRound, Download, AlertCircle, LogIn, UserPlus } from 'lucide-react';
+import { PortalSettings } from '@/types/auth';
 
 interface PortalConfig {
-  application_name: string;
-  download_url: string;
+  id?: number;
+  username: string;
   enabled: boolean;
+  custom_path: string;
+  download_url?: string;
+  application_name?: string;
+  created_at?: string;
 }
 
-const UserPortalPage: React.FC = () => {
-  const { username, custom_path } = useParams<{ username: string; custom_path: string }>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
-  const [licenseKey, setLicenseKey] = useState('');
-  const [portalUsername, setPortalUsername] = useState('');
-  const [portalPassword, setPortalPassword] = useState('');
-  const [confirmedPassword, setConfirmedPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+const UserPortalPage = () => {
+  const { username: ownerUsername, custom_path } = useParams();
   const { toast } = useToast();
-  const navigate = useNavigate();
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  
+  const [authForm, setAuthForm] = useState({
+    username: '',
+    password: '',
+    license_key: '',
+  });
+  
+  const [resetForm, setResetForm] = useState({
+    username: '',
+    license_key: '',
+  });
+  
   useEffect(() => {
-    if (!username || !custom_path) {
+    fetchPortalConfig();
+  }, [ownerUsername, custom_path]);
+
+  const fetchPortalConfig = async () => {
+    if (!ownerUsername || !custom_path) {
+      setError('Invalid portal URL');
+      setLoading(false);
       return;
     }
-    
-    fetchPortalConfiguration();
-  }, [username, custom_path]);
 
-  const fetchPortalConfiguration = async () => {
-    setIsLoading(true);
     try {
-      // First check user_portal_config table
       const { data: portalData, error: portalError } = await supabase
         .from('user_portal_config')
         .select('*')
-        .eq('username', username)
+        .eq('username', ownerUsername)
         .eq('custom_path', custom_path)
+        .eq('enabled', true)
         .maybeSingle();
 
       if (portalData) {
-        if (!portalData.enabled) {
-          toast({
-            title: 'Portal Disabled',
-            description: 'This user portal is currently disabled.',
-            variant: 'destructive',
-          });
-          navigate('/');
-          return;
-        }
+        setPortalConfig(portalData);
+        setLoading(false);
+        return;
+      }
+      
+      // Type assertion for the web_login_regz query result
+      interface PortalConfigData {
+        username: string;
+        portal_settings: PortalSettings;
+      }
+      
+      const { data: userData, error: userError } = await supabase
+        .from('web_login_regz')
+        .select('username, portal_settings')
+        .eq('username', ownerUsername)
+        .maybeSingle();
+        
+      // Type assertion to handle portal_settings property
+      const userDataWithPortal = userData as unknown as PortalConfigData;
+        
+      if (userDataWithPortal?.portal_settings?.custom_path === custom_path && 
+          userDataWithPortal?.portal_settings?.enabled === true) {
         
         setPortalConfig({
-          application_name: portalData.application_name || 'Application Portal',
-          download_url: portalData.download_url || '',
-          enabled: portalData.enabled
+          ...userDataWithPortal.portal_settings,
+          username: userDataWithPortal.username
         });
       } else {
-        // If not found in specific table, check web_login_regz for portal_settings
-        const { data: userData, error: userError } = await supabase
-          .from('web_login_regz')
-          .select('portal_settings')
-          .eq('username', username)
-          .maybeSingle();
-
-        if (userData && userData.portal_settings) {
-          const settings = userData.portal_settings;
-          
-          if (!settings.enabled || settings.custom_path !== custom_path) {
-            toast({
-              title: 'Portal Not Found',
-              description: 'The requested portal does not exist or is disabled.',
-              variant: 'destructive',
-            });
-            navigate('/');
-            return;
-          }
-          
-          setPortalConfig({
-            application_name: settings.application_name || 'Application Portal',
-            download_url: settings.download_url || '',
-            enabled: settings.enabled
-          });
-        } else {
-          toast({
-            title: 'Portal Not Found',
-            description: 'The requested portal does not exist.',
-            variant: 'destructive',
-          });
-          navigate('/');
-          return;
-        }
+        setError('Portal not found or is disabled');
       }
     } catch (error) {
-      console.error('Error fetching portal configuration:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load portal configuration.',
-        variant: 'destructive',
-      });
+      console.error('Error fetching portal:', error);
+      setError('Portal not found or is disabled');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, formType: 'auth' | 'reset') => {
+    const { name, value } = e.target;
+    if (formType === 'auth') {
+      setAuthForm(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    } else {
+      setResetForm(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!portalUsername || !portalPassword) {
-      toast({
-        title: 'Missing Fields',
-        description: 'Please enter both username and password.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    setAuthError(null);
+    setLoading(true);
     
-    setIsLoggingIn(true);
     try {
-      const { data, error } = await supabase
-        .from('user_portal_auth')
+      const { data: userData, error: userError } = await (supabase as any)
+        .from('users')
         .select('*')
-        .eq('username', portalUsername)
-        .eq('password', portalPassword) // In a real app, use proper password hashing
-        .maybeSingle();
-
-      if (error) throw error;
+        .eq('username', authForm.username)
+        .eq('password', authForm.password)
+        .single();
       
-      if (data) {
-        // Update last login time
-        await supabase
+      if (userError || !userData) {
+        setAuthError('Invalid username or password');
+        setLoading(false);
+        return;
+      }
+        
+      const { data: existingAuth } = await (supabase as any)
+        .from('user_portal_auth')
+        .select('id')
+        .eq('username', authForm.username)
+        .maybeSingle();
+        
+      if (existingAuth?.id) {
+        await (supabase as any)
           .from('user_portal_auth')
           .update({ last_login: new Date().toISOString() })
-          .eq('id', data.id);
-        
-        // Get license key details
-        const { data: licenseData, error: licenseError } = await supabase
-          .from('license_keys')
-          .select('*')
-          .eq('license_key', data.license_key)
-          .maybeSingle();
-        
-        setCurrentUser({
-          ...data,
-          licenseDetails: licenseData || {}
-        });
-        
-        setIsAuthenticated(true);
-        toast({
-          title: 'Login Successful',
-          description: 'You have successfully logged in.',
-        });
+          .eq('id', existingAuth.id);
       } else {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid username or password.',
-          variant: 'destructive',
-        });
+        await (supabase as any)
+          .from('user_portal_auth')
+          .insert({
+            username: authForm.username,
+            password: authForm.password,
+            license_key: userData.key || ''
+          });
       }
+      
+      setIsAuthenticated(true);
+      
+      setResetForm(prev => ({
+        ...prev,
+        username: authForm.username,
+        license_key: userData.key || ''
+      }));
+      
+      toast({
+        title: 'Login successful',
+        description: 'You can now access portal features',
+      });
     } catch (error) {
       console.error('Login error:', error);
-      toast({
-        title: 'Login Error',
-        description: 'An error occurred during login.',
-        variant: 'destructive',
-      });
+      setAuthError('An error occurred during login');
     } finally {
-      setIsLoggingIn(false);
+      setLoading(false);
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!portalUsername || !portalPassword || !confirmedPassword || !licenseKey) {
-      toast({
-        title: 'Missing Fields',
-        description: 'Please fill in all fields.',
-        variant: 'destructive',
-      });
+    setAuthError(null);
+    
+    if (!authForm.username || !authForm.password || !authForm.license_key) {
+      setAuthError('All fields are required');
       return;
     }
     
-    if (portalPassword !== confirmedPassword) {
-      toast({
-        title: 'Password Mismatch',
-        description: 'Passwords do not match.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    setLoading(true);
     
-    setIsRegistering(true);
     try {
-      // First verify the license key exists
-      const { data: licenseData, error: licenseError } = await supabase
+      const { data: existingUser, error: checkUserError } = await (supabase as any)
+        .from('users')
+        .select('username')
+        .eq('username', authForm.username)
+        .single();
+        
+      if (existingUser) {
+        setAuthError('Username already exists');
+        setLoading(false);
+        return;
+      }
+      
+      const { data: licenseData, error: licenseError } = await (supabase as any)
         .from('license_keys')
         .select('*')
-        .eq('license_key', licenseKey)
-        .maybeSingle();
-      
-      if (licenseError) throw licenseError;
-      
-      if (!licenseData) {
-        toast({
-          title: 'Invalid License Key',
-          description: 'The license key you entered is not valid.',
-          variant: 'destructive',
-        });
-        setIsRegistering(false);
+        .eq('license_key', authForm.license_key)
+        .single();
+        
+      if (licenseError || !licenseData) {
+        setAuthError('Invalid license key');
+        setLoading(false);
         return;
       }
       
-      // Check if user already exists with this username
-      const { data: existingUser, error: userError } = await supabase
-        .from('user_portal_auth')
-        .select('id')
-        .eq('username', portalUsername)
-        .maybeSingle();
-      
-      if (existingUser) {
-        toast({
-          title: 'Username Taken',
-          description: 'This username is already in use.',
-          variant: 'destructive',
+      const { error: registerError } = await (supabase as any)
+        .from('users')
+        .insert({
+          username: authForm.username,
+          password: authForm.password,
+          key: authForm.license_key,
+          subscription: licenseData.subscription,
+          expiredate: licenseData.expiredate,
+          save_hwid: licenseData.save_hwid,
+          banned: licenseData.banned,
+          hwid_reset_count: licenseData.hwid_reset_count,
+          max_devices: licenseData.max_devices,
+          hwid: licenseData.hwid,
+          mobile_number: licenseData.mobile_number,
+          admin_approval: licenseData.admin_approval
         });
-        setIsRegistering(false);
-        return;
+        
+      if (registerError) {
+        throw registerError;
       }
       
-      // Check if license key is already registered
-      const { data: existingLicense, error: licenseAuthError } = await supabase
-        .from('user_portal_auth')
-        .select('id')
-        .eq('license_key', licenseKey)
-        .maybeSingle();
-      
-      if (existingLicense) {
-        toast({
-          title: 'License Already Registered',
-          description: 'This license key is already registered to another user.',
-          variant: 'destructive',
-        });
-        setIsRegistering(false);
-        return;
-      }
-      
-      // Create new user
-      const { data, error } = await supabase
+      await (supabase as any)
         .from('user_portal_auth')
         .insert({
-          username: portalUsername,
-          password: portalPassword, // In a real app, use proper password hashing
-          license_key: licenseKey,
-          last_login: new Date().toISOString()
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      setCurrentUser({
-        ...data,
-        licenseDetails: licenseData
-      });
+          username: authForm.username,
+          password: authForm.password,
+          license_key: authForm.license_key,
+        });
       
       setIsAuthenticated(true);
+      
+      setResetForm(prev => ({
+        ...prev,
+        username: authForm.username,
+        license_key: authForm.license_key
+      }));
+      
       toast({
-        title: 'Registration Successful',
-        description: 'Your account has been created and you are now logged in.',
+        title: 'Registration successful',
+        description: 'Your account has been created',
       });
     } catch (error) {
       console.error('Registration error:', error);
-      toast({
-        title: 'Registration Error',
-        description: 'An error occurred during registration.',
-        variant: 'destructive',
-      });
+      setAuthError('An error occurred during registration');
     } finally {
-      setIsRegistering(false);
+      setLoading(false);
     }
   };
 
   const handleResetHWID = async () => {
-    if (!currentUser) return;
-    
-    setIsResetting(true);
-    try {
-      // Get current license data
-      const { data: licenseData, error: licenseError } = await supabase
-        .from('license_keys')
-        .select('*')
-        .eq('license_key', currentUser.license_key)
-        .maybeSingle();
-      
-      if (licenseError) throw licenseError;
-      
-      if (!licenseData) {
-        toast({
-          title: 'License Not Found',
-          description: 'Could not find your license information.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      
-      if (licenseData.hwid_reset_count <= 0) {
-        toast({
-          title: 'Reset Limit Reached',
-          description: 'You have reached the maximum number of HWID resets.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      
-      // Reset HWID by clearing the array and decrementing the reset count
-      const { error: updateError } = await supabase
-        .from('license_keys')
-        .update({
-          hwid: [],
-          hwid_reset_count: licenseData.hwid_reset_count - 1
-        })
-        .eq('license_key', currentUser.license_key);
-      
-      if (updateError) throw updateError;
-      
-      // Update the current user's license details
-      setCurrentUser({
-        ...currentUser,
-        licenseDetails: {
-          ...currentUser.licenseDetails,
-          hwid: [],
-          hwid_reset_count: currentUser.licenseDetails.hwid_reset_count - 1
-        }
-      });
-      
+    if (!resetForm.username || !resetForm.license_key) {
       toast({
-        title: 'HWID Reset Successful',
-        description: `Hardware ID has been reset. You have ${licenseData.hwid_reset_count - 1} resets remaining.`,
+        title: 'Missing information',
+        description: 'Please enter your username and license key',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const { error: userUpdateError } = await (supabase as any)
+        .from('users')
+        .update({ hwid: [] })
+        .eq('username', resetForm.username)
+        .eq('key', resetForm.license_key);
+
+      const { error: licenseUpdateError } = await (supabase as any)
+        .from('license_keys')
+        .update({ hwid: [] })
+        .eq('license_key', resetForm.license_key);
+
+      if (userUpdateError && licenseUpdateError) {
+        throw userUpdateError || licenseUpdateError;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Your HWID has been reset successfully',
       });
     } catch (error) {
-      console.error('HWID reset error:', error);
+      console.error('Error resetting HWID:', error);
       toast({
-        title: 'Reset Error',
-        description: 'An error occurred while resetting your hardware ID.',
+        title: 'Error',
+        description: 'Failed to reset HWID. Please try again later.',
         variant: 'destructive',
       });
     } finally {
-      setIsResetting(false);
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (portalConfig?.download_url) {
+      window.open(portalConfig.download_url, '_blank');
+    } else {
+      toast({
+        title: 'Download unavailable',
+        description: 'The download link has not been configured by the administrator',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    setCurrentUser(null);
-    setPortalUsername('');
-    setPortalPassword('');
-    setConfirmedPassword('');
-    setLicenseKey('');
+    setAuthForm({
+      username: '',
+      password: '',
+      license_key: '',
+    });
+    toast({
+      title: 'Logged out',
+      description: 'You have been logged out successfully',
+    });
   };
 
-  if (isLoading) {
+  if (loading && !portalConfig) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#121212]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
+        <p className="text-white">Loading portal...</p>
       </div>
     );
   }
 
-  if (!portalConfig) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#121212] text-white p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Portal Not Found</h1>
-          <p className="mt-2">The requested portal does not exist or is not configured correctly.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // User is authenticated, show the dashboard
-  if (isAuthenticated && currentUser) {
-    return (
-      <div className="min-h-screen bg-[#121212] text-white p-4">
-        <Card className="max-w-xl mx-auto bg-[#1a1a1a] border-[#2a2a2a]">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
+        <Card className="w-full max-w-md bg-[#101010] border-[#2a2a2a]">
           <CardHeader>
-            <CardTitle className="text-2xl">{portalConfig.application_name}</CardTitle>
-            <CardDescription className="text-gray-400">User Dashboard</CardDescription>
+            <CardTitle className="text-xl font-bold text-white">Portal Error</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-[#0f0f0f] p-4 rounded-md border border-[#2a2a2a]">
-              <h3 className="text-lg font-semibold mb-2">License Information</h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <span className="text-gray-400">License Key:</span>
-                <span className="font-mono">{currentUser.license_key}</span>
-                
-                <span className="text-gray-400">HWID Resets Left:</span>
-                <span>{currentUser?.licenseDetails?.hwid_reset_count || 0}</span>
-                
-                <span className="text-gray-400">Status:</span>
-                <span>{currentUser?.licenseDetails?.is_active === false ? 'Inactive' : 'Active'}</span>
-                
-                {currentUser?.licenseDetails?.expiredate && (
-                  <>
-                    <span className="text-gray-400">Expires:</span>
-                    <span>{new Date(currentUser.licenseDetails.expiredate).toLocaleDateString()}</span>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex gap-4 flex-col sm:flex-row">
-              {portalConfig.download_url && (
-                <Button className="bg-blue-600 hover:bg-blue-700 flex-1" onClick={() => window.open(portalConfig.download_url, '_blank')}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Application
-                </Button>
-              )}
-              
-              <Button 
-                className="bg-amber-600 hover:bg-amber-700 flex-1" 
-                onClick={handleResetHWID}
-                disabled={isResetting || (currentUser?.licenseDetails?.hwid_reset_count <= 0)}
-              >
-                {isResetting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Reset HWID
-              </Button>
-            </div>
+          <CardContent>
+            <p className="text-white">{error}</p>
           </CardContent>
-          <CardFooter>
-            <Button 
-              variant="outline" 
-              className="w-full bg-[#0f0f0f] border-[#2a2a2a] hover:bg-[#2a2a2a]"
-              onClick={handleLogout}
-            >
-              Logout
-            </Button>
-          </CardFooter>
         </Card>
       </div>
     );
   }
+  
+  const portalTitle = portalConfig?.application_name || "Application Portal";
 
-  // User is not authenticated, show login/register form
   return (
-    <div className="min-h-screen bg-[#121212] text-white flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-[#1a1a1a] border-[#2a2a2a]">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
+      <Card className="w-full max-w-md bg-[#101010] border-[#2a2a2a]">
         <CardHeader>
-          <CardTitle className="text-xl">{portalConfig.application_name}</CardTitle>
-          <CardDescription className="text-gray-400">User Portal</CardDescription>
+          <CardTitle className="text-xl font-bold text-white">{portalTitle}</CardTitle>
+          <CardDescription className="text-gray-400">
+            {isAuthenticated 
+              ? "Reset your HWID or download the application" 
+              : "Login or register to access portal features"}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-[#0f0f0f]">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-4">
+        
+        {isAuthenticated ? (
+          <CardContent>
+            <Tabs defaultValue="reset" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="reset">Reset HWID</TabsTrigger>
+                <TabsTrigger value="download">Download</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="reset" className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="reset-username">Username</Label>
                   <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username"
-                    value={portalUsername}
-                    onChange={(e) => setPortalUsername(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
+                    id="reset-username"
+                    name="username"
+                    value={resetForm.username}
+                    onChange={(e) => handleInputChange(e, 'reset')}
+                    className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                    readOnly
                   />
                 </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="reset-license-key">License Key</Label>
                   <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={portalPassword}
-                    onChange={(e) => setPortalPassword(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
+                    id="reset-license-key"
+                    name="license_key"
+                    value={resetForm.license_key}
+                    onChange={(e) => handleInputChange(e, 'reset')}
+                    className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                    readOnly
                   />
                 </div>
+                
                 <Button 
-                  type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  disabled={isLoggingIn}
+                  onClick={handleResetHWID} 
+                  className="w-full"
+                  disabled={loading}
                 >
-                  {isLoggingIn ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Logging in...
-                    </>
-                  ) : 'Login'}
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Reset HWID
                 </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-license">License Key</Label>
-                  <Input
-                    id="reg-license"
-                    type="text"
-                    placeholder="Enter your license key"
-                    value={licenseKey}
-                    onChange={(e) => setLicenseKey(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
-                  />
+              </TabsContent>
+              
+              <TabsContent value="download" className="pt-4">
+                <div className="text-center space-y-4">
+                  <ArrowDown className="h-12 w-12 mx-auto text-blue-500" />
+                  <h3 className="text-lg font-medium text-white">Download Application</h3>
+                  <p className="text-sm text-gray-400">
+                    Click the button below to download the latest version of the application
+                  </p>
+                  <Button onClick={handleDownload} className="w-full">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Now
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-username">Username</Label>
-                  <Input
-                    id="reg-username"
-                    type="text"
-                    placeholder="Choose a username"
-                    value={portalUsername}
-                    onChange={(e) => setPortalUsername(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password">Password</Label>
-                  <Input
-                    id="reg-password"
-                    type="password"
-                    placeholder="Choose a password"
-                    value={portalPassword}
-                    onChange={(e) => setPortalPassword(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Confirm your password"
-                    value={confirmedPassword}
-                    onChange={(e) => setConfirmedPassword(e.target.value)}
-                    className="bg-[#0f0f0f] border-[#2a2a2a]"
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  disabled={isRegistering}
-                >
-                  {isRegistering ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Registering...
-                    </>
-                  ) : 'Register'}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
+              </TabsContent>
+            </Tabs>
+            
+            <div className="mt-6 text-center">
+              <Button onClick={handleLogout} variant="outline" className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]">
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
+              </TabsList>
+              
+              {authError && (
+                <Alert className="mt-4 bg-red-900 border-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{authError}</AlertDescription>
+                </Alert>
+              )}
+              
+              <TabsContent value="login" className="space-y-4 pt-4">
+                <form onSubmit={handleLogin}>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-username">Username</Label>
+                      <Input
+                        id="login-username"
+                        name="username"
+                        placeholder="Enter your username"
+                        value={authForm.username}
+                        onChange={(e) => handleInputChange(e, 'auth')}
+                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input
+                        id="login-password"
+                        name="password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={authForm.password}
+                        onChange={(e) => handleInputChange(e, 'auth')}
+                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                        required
+                      />
+                    </div>
+                    
+                    <Button 
+                      type="submit" 
+                      className="w-full mt-4"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Logging in...
+                        </span>
+                      ) : (
+                        <>
+                          <LogIn className="mr-2 h-4 w-4" />
+                          Login
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="register" className="space-y-4 pt-4">
+                <form onSubmit={handleRegister}>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="register-username">Username</Label>
+                      <Input
+                        id="register-username"
+                        name="username"
+                        placeholder="Choose a username"
+                        value={authForm.username}
+                        onChange={(e) => handleInputChange(e, 'auth')}
+                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password">Password</Label>
+                      <Input
+                        id="register-password"
+                        name="password"
+                        type="password"
+                        placeholder="Choose a password"
+                        value={authForm.password}
+                        onChange={(e) => handleInputChange(e, 'auth')}
+                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="register-license">License Key</Label>
+                      <Input
+                        id="register-license"
+                        name="license_key"
+                        placeholder="Enter your license key"
+                        value={authForm.license_key}
+                        onChange={(e) => handleInputChange(e, 'auth')}
+                        className="bg-[#1a1a1a] border-[#2a2a2a] text-white"
+                        required
+                      />
+                    </div>
+                    
+                    <Button 
+                      type="submit" 
+                      className="w-full mt-4"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Registering...
+                        </span>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Register
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
