@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Download, RefreshCw, AlertCircle, LogIn } from 'lucide-react';
 import { UserPortalConfig } from '@/components/settings/portal/types';
+import { Json } from '@/integrations/supabase/types';
 
 const UserPortalPage: React.FC = () => {
   const { username, custom_path } = useParams<{ username: string; custom_path: string }>();
@@ -80,18 +81,39 @@ const UserPortalPage: React.FC = () => {
         if (userData && userData.portal_settings) {
           const settings = userData.portal_settings;
           
-          // Check if this is the correct portal path
-          if (settings.custom_path === custom_path) {
-            console.log("Found portal config in web_login_regz:", settings);
-            setPortalConfig({
-              enabled: settings.enabled,
-              custom_path: settings.custom_path,
-              download_url: settings.download_url,
-              application_name: settings.application_name,
-              username: username
-            });
+          // Type check and safely access the portal_settings properties
+          if (
+            typeof settings === 'object' && 
+            settings !== null &&
+            !Array.isArray(settings) &&
+            'custom_path' in settings &&
+            'enabled' in settings &&
+            'download_url' in settings &&
+            'application_name' in settings
+          ) {
+            // Now TypeScript knows these properties exist
+            const typedSettings = settings as {
+              custom_path: string;
+              enabled: boolean;
+              download_url: string;
+              application_name: string;
+            };
+            
+            // Check if this is the correct portal path
+            if (typedSettings.custom_path === custom_path) {
+              console.log("Found portal config in web_login_regz:", typedSettings);
+              setPortalConfig({
+                enabled: typedSettings.enabled,
+                custom_path: typedSettings.custom_path,
+                download_url: typedSettings.download_url,
+                application_name: typedSettings.application_name,
+                username: username
+              });
+            } else {
+              throw new Error("Portal not found");
+            }
           } else {
-            throw new Error("Portal not found");
+            throw new Error("Invalid portal configuration format");
           }
         } else {
           throw new Error("Portal configuration not found");
