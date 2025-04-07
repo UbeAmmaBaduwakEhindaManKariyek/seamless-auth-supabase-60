@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +24,7 @@ interface PortalConfig {
 
 const UserPortalPage = () => {
   const { username: ownerUsername, custom_path } = useParams();
+  const location = useLocation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -44,27 +46,25 @@ const UserPortalPage = () => {
   
   const isMounted = React.useRef(true);
   
+  // Log important information for debugging
   useEffect(() => {
+    console.log("UserPortalPage mounted");
+    console.log("Params:", { ownerUsername, custom_path });
+    console.log("Current path:", location.pathname);
+    
     return () => {
       isMounted.current = false;
     };
-  }, []);
+  }, [ownerUsername, custom_path, location]);
   
-  useEffect(() => {
-    if (ownerUsername && custom_path) {
-      console.log(`Loading portal for ${ownerUsername}/${custom_path}`);
-      fetchPortalConfig();
-    } else {
-      console.error("Missing username or custom_path parameters");
-      setError('Invalid portal URL');
-      setLoading(false);
-    }
-  }, [ownerUsername, custom_path]);
-
-  const fetchPortalConfig = async () => {
+  const fetchPortalConfig = useCallback(async () => {
+    console.log("Fetching portal config...");
     if (!ownerUsername || !custom_path) {
-      setError('Invalid portal URL');
-      setLoading(false);
+      console.error("Missing username or custom_path parameters");
+      if (isMounted.current) {
+        setError('Invalid portal URL');
+        setLoading(false);
+      }
       return;
     }
 
@@ -87,6 +87,8 @@ const UserPortalPage = () => {
           setLoading(false);
         }
         return;
+      } else {
+        console.log('Portal config not found in user_portal_config, checking web_login_regz');
       }
       
       // If not found in user_portal_config, check web_login_regz table
@@ -126,34 +128,53 @@ const UserPortalPage = () => {
                 download_url: portalSettings.download_url,
                 application_name: portalSettings.application_name
               });
+              setLoading(false);
             }
           } else {
+            console.error('Portal settings do not match or are disabled');
             if (isMounted.current) {
               setError('Portal not found or is disabled');
+              setLoading(false);
             }
           }
         } catch (error) {
           console.error('Error parsing portal settings:', error);
           if (isMounted.current) {
             setError('Invalid portal configuration');
+            setLoading(false);
           }
         }
       } else {
+        console.error('No portal settings found in user data');
         if (isMounted.current) {
           setError('Portal not found or is disabled');
+          setLoading(false);
         }
       }
     } catch (error) {
       console.error('Error fetching portal:', error);
       if (isMounted.current) {
         setError('Portal not found or is disabled');
+        setLoading(false);
       }
     } finally {
       if (isMounted.current) {
         setLoading(false);
       }
     }
-  };
+  }, [ownerUsername, custom_path]);
+
+  useEffect(() => {
+    // This effect runs when the component mounts or params change
+    if (ownerUsername && custom_path) {
+      console.log(`Loading portal for ${ownerUsername}/${custom_path}`);
+      fetchPortalConfig();
+    } else {
+      console.error("Missing username or custom_path parameters");
+      setError('Invalid portal URL');
+      setLoading(false);
+    }
+  }, [ownerUsername, custom_path, fetchPortalConfig]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, formType: 'auth' | 'reset') => {
     const { name, value } = e.target;
@@ -388,6 +409,7 @@ const UserPortalPage = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <p className="text-white ml-2">Loading portal...</p>
       </div>
     );
   }

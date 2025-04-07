@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 // Layouts
@@ -28,45 +28,61 @@ import ApplicationsPage from "./pages/ApplicationsPage";
 import UserPortalPage from "./pages/UserPortalPage";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 0,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Create a custom wrapper that logs information about routes
+const RouteLogger = ({ children }) => {
+  const location = useLocation();
+  console.log("Current route:", location.pathname);
+  return children;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <Routes>
-          {/* Portal route has its own dedicated path with highest priority */}
-          <Route path="/portal/:username/:custom_path" element={<UserPortalPage />} />
-          
-          {/* Auth routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          
-          {/* Dashboard routes */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="licenses" element={<LicensesPage />} />
-            <Route path="subscriptions" element={<SubscriptionsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="webhooks" element={<WebhooksPage />} />
-            <Route path="logs" element={<LogsPage />} />
-            <Route path="login-details" element={<LoginDetailsPage />} />
-            <Route path="app-open" element={<AppOpenPage />} />
-            <Route path="emu-users" element={<EmuUsersPage />} />
-            <Route path="api-docs" element={<ApiDocsPage />} />
-            <Route path="applications" element={<ApplicationsPage />} />
-          </Route>
-          
-          {/* Catch all route at the very end */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <RouteLogger>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            {/* Portal routes with much higher priority and wildcard matching */}
+            <Route path="/portal/:username/:custom_path/*" element={<UserPortalPage />} />
+            
+            {/* Auth routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Dashboard routes */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="licenses" element={<LicensesPage />} />
+              <Route path="subscriptions" element={<SubscriptionsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="webhooks" element={<WebhooksPage />} />
+              <Route path="logs" element={<LogsPage />} />
+              <Route path="login-details" element={<LoginDetailsPage />} />
+              <Route path="app-open" element={<AppOpenPage />} />
+              <Route path="emu-users" element={<EmuUsersPage />} />
+              <Route path="api-docs" element={<ApiDocsPage />} />
+              <Route path="applications" element={<ApplicationsPage />} />
+            </Route>
+            
+            {/* Catch all route at the very end */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </RouteLogger>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

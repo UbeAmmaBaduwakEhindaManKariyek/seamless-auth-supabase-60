@@ -1,5 +1,5 @@
 
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,24 +11,31 @@ const NotFound = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("404 Error: User attempted to access non-existent route:", location.pathname);
+    console.log("NotFound component mounted");
+    console.log("Current path:", location.pathname);
 
-    // Check if this is a portal path
-    const pathSegments = location.pathname.split('/');
-    if (pathSegments.length >= 3 && pathSegments[1] === 'portal') {
-      const username = pathSegments[2];
-      const customPath = pathSegments[3] || '';
-      console.log(`Detected portal path: ${username}/${customPath}`);
+    const checkAndRedirectPortal = async () => {
+      // Check if this is a portal path
+      const pathSegments = location.pathname.split('/');
+      console.log("Path segments:", pathSegments);
       
-      // Always redirect to the standardized URL format with proper segments
-      if (username && customPath) {
-        navigate(`/portal/${username}/${customPath}`, { replace: true });
-      } else {
-        setLoading(false);
+      if (pathSegments.length >= 3 && pathSegments[1] === 'portal') {
+        const username = pathSegments[2];
+        const customPath = pathSegments[3] || '';
+        console.log(`Detected potential portal path: ${username}/${customPath}`);
+        
+        if (username && customPath) {
+          console.log(`Redirecting to /portal/${username}/${customPath}`);
+          navigate(`/portal/${username}/${customPath}`, { replace: true });
+          return;
+        }
       }
-    } else {
+      
+      // If we get here, it's not a valid portal path or couldn't be redirected
       setLoading(false);
-    }
+    };
+    
+    checkAndRedirectPortal();
   }, [location.pathname, navigate]);
 
   if (loading) {
